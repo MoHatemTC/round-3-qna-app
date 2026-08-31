@@ -10,6 +10,7 @@ import { CreateUserDTO } from "./create-user-dto.js";
 import { UserService } from "./user.service.js";
 import { LoginUserDTO } from "./login-user-dto.js";
 import type { Response } from "express";
+import { VerifyEmailDTO } from "./verify-email-dto.js";
 @Controller("/auth")
 export class UserController {
   constructor(private userService: UserService) {}
@@ -36,5 +37,10 @@ export class UserController {
       maxAge: 24 * 60 * 60 * 1000
     });
     return { message: "Welcome back!" };
+  }
+
+  @Post("/verify-email")
+  async verifyEmail(@Body() { email, token }: VerifyEmailDTO) {
+    return await this.userService.verifyEmailToken(email, token);
   }
 }
