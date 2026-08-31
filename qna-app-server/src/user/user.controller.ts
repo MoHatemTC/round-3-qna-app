@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Get,
   HttpCode,
   HttpStatus,
   Post,
@@ -40,7 +41,16 @@ export class UserController {
   }
 
   @Post("/verify-email")
+  @HttpCode(HttpStatus.OK)
   async verifyEmail(@Body() { email, token }: VerifyEmailDTO) {
     return await this.userService.verifyEmailToken(email, token);
+  }
+  @Get("/dashboard")
+  dashboard() {
+    return "Welcome student";
+  }
+  @Get("/admin-panel")
+  adminPanel() {
+    return "Welcome admin";
   }
 }
