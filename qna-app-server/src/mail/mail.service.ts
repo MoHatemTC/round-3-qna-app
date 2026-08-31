@@ -4,7 +4,7 @@ import { MailerService } from "@nestjs-modules/mailer";
 @Injectable()
 export class MailService {
   constructor(private mailerService: MailerService) {}
-  async verifyEmail(email: string) {
+  async verifyEmail(email: string, token) {
     try {
       const today = new Date();
       await this.mailerService.sendMail({
@@ -14,7 +14,7 @@ export class MailService {
         html: `
             <div>
               <h2>Hello, ${email}</h2>
-              <p>Verify your account registered in ${today.toDateString()}</p>
+              <p>Your token is ${token}, and it is valid for 24 hours</p>
             </div>
             `
       });
