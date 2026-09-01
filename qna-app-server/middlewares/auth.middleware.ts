@@ -29,11 +29,11 @@ export class RequireAuth implements NestMiddleware {
   }
 }
 
-export function RequireRole(role: "admin" | "student") {
+export function RequireRole(adminRole: string) {
   return (req: Request, res: Response, next: NextFunction) => {
-    const userRole = (req as any).user?.role;
+    const role = (req as any).user?.role;
 
-    if (!userRole || userRole !== role) {
+    if (!role || role !== adminRole) {
       throw new ForbiddenException("FORBIDDEN");
     }
 
