@@ -10,6 +10,7 @@ import { CreateUserDTO } from "./create-user-dto.js";
 import { LoginUserDTO } from "./login-user-dto.js";
 import { JwtService } from "@nestjs/jwt";
 import { MailService } from "../mail/mail.service.js";
+import { VerifyEmailTemplate } from "./../notifications/templates/verifiy-email-template.js";
 
 @Injectable()
 export class UserService {
@@ -53,7 +54,13 @@ export class UserService {
       }
     });
 
-    await this.mailService.verifyEmail(email, token);
+    const verificationEmail = VerifyEmailTemplate(token);
+
+    await this.mailService.sendGenericEmail(
+      email,
+      verificationEmail.subject,
+      verificationEmail.body
+    );
 
     return {
       message: "User registered successfully, please verify your mail."
