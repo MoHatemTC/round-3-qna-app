@@ -9,9 +9,10 @@ import { AppService } from "./app.service.js";
 import { UserModule } from "./user/user.module.js";
 import { MailModule } from "./mail/mail.module.js";
 import { RequireAuth, RequireRole } from "../middlewares/auth.middleware.js";
+import { NotificationsModule } from "./notifications/notifications.module.js";
 
 @Module({
-  imports: [UserModule, MailModule],
+  imports: [UserModule, MailModule, NotificationsModule],
   controllers: [AppController],
   providers: [AppService]
 })
