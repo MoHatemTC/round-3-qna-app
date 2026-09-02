@@ -1,17 +1,50 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 
 const LoginPage = () => {
 
     const [email, setEmail] = useState("")
     const [password, setPassword] = useState("")
-    // const [loading, setLoading] = useState(false)
+    const [loading, setLoading] = useState(false)
 
-    function handleSubmit(e) {
+    const navigate = useNavigate()
+
+    async function handleSubmit(e) {
         e.preventDefault()
-        console.log(
-            'email: ' + email + " " +
-            'password: ' + password
-        )
+
+        setLoading(true)
+
+        try {
+            const res = await fetch(`http://localhost:3000/auth/login`, {
+                method: "POST",
+                credentials: "include",
+                body: JSON.stringify({
+                    email,
+                    password
+                }),
+                headers: {
+                    "Content-Type": "application/json"
+                }
+            })
+
+            const data = await res.json()
+
+            if (!res.ok) {
+                window.alert(data.error || "Error")
+                return
+            }
+
+            navigate('/dashboard', { replace: true })
+
+        } catch (error) {
+            window.alert(error instanceof Error ? error : "Error while fetching")
+        } finally {
+            setLoading(false)
+        }
+        // console.log(
+        //     'email: ' + email + " " +
+        //     'password: ' + password
+        // )
     }
 
     return (
@@ -37,7 +70,9 @@ const LoginPage = () => {
                 />
                 <button
                     className="mt-10 cursor-pointer border rounded-full bg-blue-500 text-white w-30 py-1 inline-block mx-auto hover:bg-blue-600"
-                >Submit</button>
+                >
+                    {loading ? "Loading..." : "Submit"}
+                </button>
             </form>
 
         </main>
