@@ -1,21 +1,50 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 
 const RegisterPage = () => {
+
+    const navigate = useNavigate()
 
     const [name, setName] = useState("")
     const [email, setEmail] = useState("")
     const [password, setPassword] = useState("")
     const [role, setRole] = useState(null)
-    // const [loading, setLoading] = useState(false)
+    const [loading, setLoading] = useState(false)
 
-    function handleSubmit(e) {
+    async function handleSubmit(e) {
         e.preventDefault()
-        console.log(
-            'name: ' + name + " " +
-            'email: ' + email + " " +
-            'password: ' + password + " " +
-            'role: ' + role
-        )
+
+        setLoading(true)
+
+        try {
+
+            const res = await fetch('http://localhost:3000/auth/register', {
+                method: "POST",
+                body: JSON.stringify({
+                    name,
+                    email,
+                    password,
+                    role
+                }),
+                headers: {
+                    "Content-Type": "application/json"
+                }
+            })
+
+            const data = await res.json()
+
+            if (!res.ok) {
+                window.alert(data.error || 'ERROR')
+                return
+            }
+
+            navigate('/verify-account', { state: { email } })
+
+        } catch (error) {
+            window.alert(error instanceof Error ? error : "REGISTER ERROR!")
+        } finally {
+            setLoading(false)
+        }
     }
 
     return (
@@ -70,8 +99,13 @@ const RegisterPage = () => {
                     <label htmlFor="student">Student</label>
                 </div>
                 <button
+                    disabled={loading ? true : false}
                     className="cursor-pointer border rounded-full bg-blue-500 text-white w-30 py-1 inline-block mx-auto hover:bg-blue-600"
-                >Submit</button>
+                >
+                    {
+                        loading ? "Loading..." : "Submit"
+                    }
+                </button>
             </form>
 
         </main>
