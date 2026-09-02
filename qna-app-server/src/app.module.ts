@@ -22,7 +22,8 @@ export class AppModule implements NestModule {
       .apply(RequireAuth)
       .forRoutes(
         { path: "auth/admin-panel", method: RequestMethod.GET },
-        { path: "auth/dashboard", method: RequestMethod.GET }
+        { path: "auth/dashboard", method: RequestMethod.GET },
+        { path: "auth/session", method: RequestMethod.GET }
       );
 
     consumer
