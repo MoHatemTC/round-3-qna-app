@@ -1,8 +1,8 @@
 import './App.css'
 import { BrowserRouter, Routes, Route } from "react-router-dom"
-import StudentDashboard from './features/student/StudentDashboard'
-import InviteEntry from './features/student/InviteEntry'
-import QuizPlaceholder from './features/student/QuizPlaceholder'
+import StudentDashboard from './pages/StudentDashboard'
+import InviteEntry from './pages/InviteEntry'
+import QuizPlaceholder from './pages/QuizPlaceholder'
 
 function App() {
   return (
