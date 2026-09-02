@@ -5,12 +5,14 @@ import {
   HttpCode,
   HttpStatus,
   Post,
-  Res
+  Res,
+  Req
 } from "@nestjs/common";
 import { CreateUserDTO } from "./create-user-dto.js";
 import { UserService } from "./user.service.js";
 import { LoginUserDTO } from "./login-user-dto.js";
 import type { Response } from "express";
+import type { Request } from "express";
 import { VerifyEmailDTO } from "./verify-email-dto.js";
 @Controller("/auth")
 export class UserController {
@@ -30,7 +32,7 @@ export class UserController {
     @Body() loginUserDTO: LoginUserDTO,
     @Res({ passthrough: true }) res: Response
   ) {
-    const token = await this.userService.login(loginUserDTO);
+    const { token } = await this.userService.login(loginUserDTO);
     res.cookie("token", token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
@@ -38,6 +40,11 @@ export class UserController {
       maxAge: 24 * 60 * 60 * 1000
     });
     return { message: "Welcome back!" };
+  }
+
+  @Get("/session")
+  session(@Req() req: Request) {
+    return { user: (req as Request & { user?: unknown }).user };
   }
 
   @Post("/verify-email")
