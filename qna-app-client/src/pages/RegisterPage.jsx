@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router";
 
 const RegisterPage = () => {
 
@@ -13,6 +13,11 @@ const RegisterPage = () => {
 
     async function handleSubmit(e) {
         e.preventDefault()
+
+        if (!role) {
+            window.alert("Please select a role (Admin or Student).")
+            return
+        }
 
         setLoading(true)
 
@@ -34,14 +39,17 @@ const RegisterPage = () => {
             const data = await res.json()
 
             if (!res.ok) {
-                window.alert(data.error || 'ERROR')
+                const detail = Array.isArray(data.message)
+                    ? data.message.join("\n")
+                    : data.message || data.error || 'ERROR'
+                window.alert(detail)
                 return
             }
 
             navigate('/verify-account', { state: { email } })
 
         } catch (error) {
-            window.alert(error instanceof Error ? error : "REGISTER ERROR!")
+            window.alert(error instanceof Error ? error.message : "REGISTER ERROR!")
         } finally {
             setLoading(false)
         }
@@ -60,6 +68,8 @@ const RegisterPage = () => {
                     className="p-2 border rounded"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
+                    required
+                    minLength={2}
                 />
                 <input
                     type="email"
@@ -67,6 +77,7 @@ const RegisterPage = () => {
                     className="p-2 border rounded my-2"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
+                    required
                 />
                 <input
                     type="password"
@@ -74,6 +85,9 @@ const RegisterPage = () => {
                     className="p-2 border rounded"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
+                    required
+                    minLength={8}
+                    maxLength={20}
                 />
                 <label className="mt-3">Role</label>
                 <div>
@@ -84,6 +98,7 @@ const RegisterPage = () => {
                         value="admin"
                         checked={role === "admin"}
                         onChange={(e) => setRole(e.target.value)}
+                        required
                     />
                     <label htmlFor="admin">Admin</label>
                 </div>
@@ -95,6 +110,7 @@ const RegisterPage = () => {
                         value="student"
                         checked={role === "student"}
                         onChange={(e) => setRole(e.target.value)}
+                        required
                     />
                     <label htmlFor="student">Student</label>
                 </div>
@@ -107,6 +123,13 @@ const RegisterPage = () => {
                     }
                 </button>
             </form>
+
+            <p className="mt-4 text-sm">
+                Already have an account?{" "}
+                <Link to="/login" className="text-blue-500 underline">
+                    Sign in
+                </Link>
+            </p>
 
         </main>
     )

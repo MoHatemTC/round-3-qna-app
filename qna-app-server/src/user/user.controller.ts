@@ -44,7 +44,18 @@ export class UserController {
 
   @Get("/session")
   session(@Req() req: Request) {
-    return { user: (req as Request & { user?: unknown }).user };
+    return { user: req.user };
+  }
+
+  @Post("/logout")
+  @HttpCode(HttpStatus.OK)
+  logout(@Res({ passthrough: true }) res: Response) {
+    res.clearCookie("token", {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax"
+    });
+    return { message: "Signed out" };
   }
 
   @Post("/verify-email")

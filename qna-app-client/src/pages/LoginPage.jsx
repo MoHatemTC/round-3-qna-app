@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router";
 
 const LoginPage = () => {
 
@@ -30,14 +30,17 @@ const LoginPage = () => {
             const data = await res.json()
 
             if (!res.ok) {
-                window.alert(data.error || "Error")
+                const detail = Array.isArray(data.message)
+                    ? data.message.join("\n")
+                    : data.message || data.error || "Error"
+                window.alert(detail)
                 return
             }
 
             navigate('/dashboard', { replace: true })
 
         } catch (error) {
-            window.alert(error instanceof Error ? error : "Error while fetching")
+            window.alert(error instanceof Error ? error.message : "Error while fetching")
         } finally {
             setLoading(false)
         }
@@ -60,6 +63,7 @@ const LoginPage = () => {
                     className="p-2 border rounded my-2"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
+                    required
                 />
                 <input
                     type="password"
@@ -67,6 +71,7 @@ const LoginPage = () => {
                     className="p-2 border rounded"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
+                    required
                 />
                 <button
                     className="mt-10 cursor-pointer border rounded-full bg-blue-500 text-white w-30 py-1 inline-block mx-auto hover:bg-blue-600"
@@ -74,6 +79,13 @@ const LoginPage = () => {
                     {loading ? "Loading..." : "Submit"}
                 </button>
             </form>
+
+            <p className="mt-4 text-sm">
+                Don't have an account?{" "}
+                <Link to="/register" className="text-blue-500 underline">
+                    Register
+                </Link>
+            </p>
 
         </main>
     )

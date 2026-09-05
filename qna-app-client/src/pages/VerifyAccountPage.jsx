@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router";
 
 const VerifyAccountPage = () => {
 
@@ -10,7 +10,7 @@ const VerifyAccountPage = () => {
 
   const { state } = useLocation()
 
-  const { email } = state
+  const email = state?.email
 
   async function handleSubmit(e) {
     e.preventDefault()
@@ -33,19 +33,37 @@ const VerifyAccountPage = () => {
       const data = await res.json()
 
       if (!res.ok) {
-        window.alert(data.error || "Error")
+        const detail = Array.isArray(data.message)
+          ? data.message.join("\n")
+          : data.message || data.error || "Error"
+        window.alert(detail)
         return
       }
 
-      window.alert(res.message || "Account verified, please try to login")
+      window.alert(data.message || "Account verified, please try to login")
 
       navigate('/login', { replace: true })
 
     } catch (error) {
-      window.alert(error instanceof Error ? error : "Error while fetching")
+      window.alert(error instanceof Error ? error.message : "Error while fetching")
     } finally {
       setLoading(false)
     }
+  }
+
+  if (!email) {
+    return (
+      <main className="min-h-screen flex flex-col items-center justify-center">
+        <h2 className="text-xl font-bold">Verify Account!</h2>
+        <p className="mt-4 text-sm">
+          We don't know which email to verify. Please{" "}
+          <Link to="/register" className="text-blue-500 underline">
+            register
+          </Link>{" "}
+          again to get a fresh code.
+        </p>
+      </main>
+    )
   }
 
   return (
@@ -61,6 +79,7 @@ const VerifyAccountPage = () => {
           className="p-2 border rounded my-2"
           value={token}
           onChange={(e) => setToken(e.target.value)}
+          required
         />
         <button
           className="mt-10 cursor-pointer border rounded-full bg-blue-500 text-white w-30 py-1 inline-block mx-auto hover:bg-blue-600"

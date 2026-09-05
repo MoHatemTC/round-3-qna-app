@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react"
-import { Navigate, Outlet, useLocation } from "react-router-dom"
+import { Navigate, Outlet, useLocation } from "react-router"
 
 export function Proxy() {
     const location = useLocation()

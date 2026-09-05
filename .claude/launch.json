@@ -1,0 +1,18 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "qna-app-client",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev", "--prefix", "qna-app-client"],
+      "port": 5173,
+      "autoPort": true
+    },
+    {
+      "name": "qna-app-server",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "start:dev", "--prefix", "qna-app-server"],
+      "port": 3000
+    }
+  ]
+}
