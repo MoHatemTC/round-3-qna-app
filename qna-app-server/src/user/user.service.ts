@@ -11,6 +11,7 @@ import { LoginUserDTO } from "./login-user-dto.js";
 import { JwtService } from "@nestjs/jwt";
 import { MailService } from "../mail/mail.service.js";
 import { VerifyEmailTemplate } from "./../notifications/templates/verifiy-email-template.js";
+import { randomInt } from "node:crypto";
 
 @Injectable()
 export class UserService {
@@ -28,14 +29,14 @@ export class UserService {
     return await bcrypt.hash(plainToken, saltRound);
   }
 
-  async register({ name, email, password, role }: CreateUserDTO) {
+  async register({ name, email, password }: CreateUserDTO) {
     const user = await this.prismaService.user.findUnique({
       where: { email }
     });
 
     if (user) throw new ConflictException("This email is already registered");
 
-    const token = Math.floor(100000 + Math.random() * 900000).toString();
+    const token = randomInt(100_000, 1_000_000).toString();
 
     const hashedPassword = await this.encryptPassword(password, 10);
 
@@ -48,7 +49,6 @@ export class UserService {
         name,
         email,
         password_hash: hashedPassword,
-        role,
         verification_token: hashedToken,
         verification_expires: expiresAt
       }
@@ -72,11 +72,19 @@ export class UserService {
       where: { email }
     });
 
+    const hasedPassword = user
+      ? user.password_hash
+      : (process.env.DUMMY_HASH as string);
+
+    const isPasswordValid = await bcrypt.compare(password, hasedPassword);
+
     if (!user) {
       throw new UnauthorizedException("Invalid email or password");
     }
 
-    const isPasswordValid = await bcrypt.compare(password, user.password_hash);
+    if (user.email_verified_at === null) {
+      throw new UnauthorizedException("Please verify your account");
+    }
 
     if (!isPasswordValid) {
       throw new UnauthorizedException("Invalid email or password");
