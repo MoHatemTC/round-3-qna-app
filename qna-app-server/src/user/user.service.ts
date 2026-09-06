@@ -13,6 +13,9 @@ import { MailService } from "../mail/mail.service.js";
 import { VerifyEmailTemplate } from "./../notifications/templates/verifiy-email-template.js";
 import { randomInt } from "node:crypto";
 
+const DUMMY_HASH =
+  "$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy";
+
 @Injectable()
 export class UserService {
   constructor(
@@ -67,27 +70,21 @@ export class UserService {
     };
   }
 
-  async login({ email, password }: LoginUserDTO) {
+  async login({ email, password }: LoginUserDTO) {  
     const user = await this.prismaService.user.findUnique({
       where: { email }
     });
 
-    const hasedPassword = user
-      ? user.password_hash
-      : (process.env.DUMMY_HASH as string);
+    const hashedPassword = user ? user.password_hash : DUMMY_HASH;
 
-    const isPasswordValid = await bcrypt.compare(password, hasedPassword);
+    const isPasswordValid = await bcrypt.compare(password, hashedPassword);
 
-    if (!user) {
+    if (!user || !isPasswordValid) {
       throw new UnauthorizedException("Invalid email or password");
     }
 
     if (user.email_verified_at === null) {
       throw new UnauthorizedException("Please verify your account");
-    }
-
-    if (!isPasswordValid) {
-      throw new UnauthorizedException("Invalid email or password");
     }
 
     const token = await this.jwtService.signAsync({
