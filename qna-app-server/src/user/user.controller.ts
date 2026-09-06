@@ -30,7 +30,7 @@ export class UserController {
     @Body() loginUserDTO: LoginUserDTO,
     @Res({ passthrough: true }) res: Response
   ) {
-    const token = await this.userService.login(loginUserDTO);
+    const { token } = await this.userService.login(loginUserDTO);
     res.cookie("token", token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
