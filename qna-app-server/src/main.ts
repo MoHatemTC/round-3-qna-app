@@ -21,10 +21,15 @@ async function bootstrap() {
   );
 
   const config = new DocumentBuilder()
-    .setTitle("Cats example")
-    .setDescription("The cats API description")
+    .setTitle("QnA App API")
+    .setDescription(
+      "Auth, and admin quiz management. Admin routes require the " +
+        "'token' cookie set by POST /auth/login for an account with role 'admin'."
+    )
     .setVersion("1.0")
-    .addTag("cats")
+    .addTag("auth")
+    .addTag("quizzes")
+    .addCookieAuth("token")
     .build();
   const documentFactory = () => SwaggerModule.createDocument(app, config);
   SwaggerModule.setup("api", app, documentFactory);
