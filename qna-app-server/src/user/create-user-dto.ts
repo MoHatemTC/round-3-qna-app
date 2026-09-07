@@ -1,11 +1,4 @@
-import {
-  IsEmail,
-  IsNotEmpty,
-  MinLength,
-  MaxLength,
-  IsEnum
-} from "class-validator";
-import { Role } from "../generated/prisma/enums.js";
+import { IsEmail, IsNotEmpty, MinLength, MaxLength } from "class-validator";
 
 export class CreateUserDTO {
   @IsNotEmpty()
@@ -19,8 +12,4 @@ export class CreateUserDTO {
   @MinLength(8)
   @MaxLength(20)
   password: string;
-
-  @IsNotEmpty()
-  @IsEnum(Role)
-  role: Role;
 }

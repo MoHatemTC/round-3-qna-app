@@ -11,8 +11,7 @@ import {
 import { CreateUserDTO } from "./create-user-dto.js";
 import { UserService } from "./user.service.js";
 import { LoginUserDTO } from "./login-user-dto.js";
-import type { Response } from "express";
-import type { Request } from "express";
+import type { Response, Request } from "express";
 import { VerifyEmailDTO } from "./verify-email-dto.js";
 @Controller("/auth")
 export class UserController {

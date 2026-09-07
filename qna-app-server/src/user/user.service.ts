@@ -11,6 +11,10 @@ import { LoginUserDTO } from "./login-user-dto.js";
 import { JwtService } from "@nestjs/jwt";
 import { MailService } from "../mail/mail.service.js";
 import { VerifyEmailTemplate } from "./../notifications/templates/verifiy-email-template.js";
+import { randomInt } from "node:crypto";
+
+const DUMMY_HASH =
+  "$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy";
 
 @Injectable()
 export class UserService {
@@ -28,14 +32,14 @@ export class UserService {
     return await bcrypt.hash(plainToken, saltRound);
   }
 
-  async register({ name, email, password, role }: CreateUserDTO) {
+  async register({ name, email, password }: CreateUserDTO) {
     const user = await this.prismaService.user.findUnique({
       where: { email }
     });
 
     if (user) throw new ConflictException("This email is already registered");
 
-    const token = Math.floor(100000 + Math.random() * 900000).toString();
+    const token = randomInt(100_000, 1_000_000).toString();
 
     const hashedPassword = await this.encryptPassword(password, 10);
 
@@ -48,7 +52,6 @@ export class UserService {
         name,
         email,
         password_hash: hashedPassword,
-        role,
         verification_token: hashedToken,
         verification_expires: expiresAt
       }
@@ -67,19 +70,21 @@ export class UserService {
     };
   }
 
-  async login({ email, password }: LoginUserDTO) {
+  async login({ email, password }: LoginUserDTO) {  
     const user = await this.prismaService.user.findUnique({
       where: { email }
     });
 
-    if (!user) {
+    const hashedPassword = user ? user.password_hash : DUMMY_HASH;
+
+    const isPasswordValid = await bcrypt.compare(password, hashedPassword);
+
+    if (!user || !isPasswordValid) {
       throw new UnauthorizedException("Invalid email or password");
     }
 
-    const isPasswordValid = await bcrypt.compare(password, user.password_hash);
-
-    if (!isPasswordValid) {
-      throw new UnauthorizedException("Invalid email or password");
+    if (user.email_verified_at === null) {
+      throw new UnauthorizedException("Please verify your account");
     }
 
     const token = await this.jwtService.signAsync({
