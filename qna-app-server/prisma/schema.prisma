@@ -70,4 +70,21 @@ model Attempt {
   percentage   Float?        @default(0)
   created_at   DateTime      @default(now())
   updated_at   DateTime      @updatedAt
+  answers      AttemptAnswer[]
+}
+
+// question_id/selected_option_id are not FKs yet: Question/Option models
+// don't exist in this schema until the quiz-authoring feature adds them.
+model AttemptAnswer {
+  id                 String   @id @default(uuid())
+  attempt_id         String
+  attempt            Attempt  @relation(fields: [attempt_id], references: [id], onDelete: Cascade)
+  question_id        String
+  selected_option_id String?
+  boolean_answer     Boolean?
+  is_correct         Boolean?
+  created_at         DateTime @default(now())
+  updated_at         DateTime @updatedAt
+
+  @@unique([attempt_id, question_id])
 }
