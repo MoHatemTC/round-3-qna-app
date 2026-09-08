@@ -3,11 +3,11 @@ import { UserController } from "./user.controller.js";
 import { UserService } from "./user.service.js";
 import { PrismaService } from "./../prisma.service.js";
 import { JwtModule } from "@nestjs/jwt";
-import { MailModule } from "../mail/mail.module.js";
+import { NotificationsModule } from "../notifications/notifications.module.js";
 
 @Module({
   imports: [
-    MailModule,
+    NotificationsModule,
     JwtModule.register({
       global: true,
       secret: process.env.JWT_SECRET,
