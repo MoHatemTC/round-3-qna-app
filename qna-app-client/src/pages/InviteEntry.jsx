@@ -4,18 +4,17 @@ import { useParams, useNavigate } from "react-router-dom";
 export default function InviteEntry() {
   const { token } = useParams();
   const navigate = useNavigate();
-  const [status, setStatus] = useState("loading"); // loading | success | error
+  const [status, setStatus] = useState("loading");
   const [errorType, setErrorType] = useState(null);
 
   useEffect(() => {
-    fetch(`http://localhost:3000/student/invite/${token}`)
+    fetch(`http://localhost:3000/student/invite/${token}`, { credentials: "include" })
       .then((res) => res.json())
       .then((data) => {
         if (data.error) {
           setErrorType(data.error);
           setStatus("error");
         } else {
-          // valid quiz found — go to it (we'll build this page next)
           navigate(`/quiz/${data.id}`);
         }
       })
