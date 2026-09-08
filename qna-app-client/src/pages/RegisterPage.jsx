@@ -8,16 +8,10 @@ const RegisterPage = () => {
     const [name, setName] = useState("")
     const [email, setEmail] = useState("")
     const [password, setPassword] = useState("")
-    const [role, setRole] = useState(null)
     const [loading, setLoading] = useState(false)
 
     async function handleSubmit(e) {
         e.preventDefault()
-
-        if (!role) {
-            window.alert("Please select a role (Admin or Student).")
-            return
-        }
 
         setLoading(true)
 
@@ -28,8 +22,7 @@ const RegisterPage = () => {
                 body: JSON.stringify({
                     name,
                     email,
-                    password,
-                    role
+                    password
                 }),
                 headers: {
                     "Content-Type": "application/json"
@@ -89,31 +82,6 @@ const RegisterPage = () => {
                     minLength={8}
                     maxLength={20}
                 />
-                <label className="mt-3">Role</label>
-                <div>
-                    <input
-                        type="radio"
-                        name="role"
-                        id="admin"
-                        value="admin"
-                        checked={role === "admin"}
-                        onChange={(e) => setRole(e.target.value)}
-                        required
-                    />
-                    <label htmlFor="admin">Admin</label>
-                </div>
-                <div>
-                    <input
-                        type="radio"
-                        name="role"
-                        id="student"
-                        value="student"
-                        checked={role === "student"}
-                        onChange={(e) => setRole(e.target.value)}
-                        required
-                    />
-                    <label htmlFor="student">Student</label>
-                </div>
                 <button
                     disabled={loading ? true : false}
                     className="cursor-pointer border rounded-full bg-blue-500 text-white w-30 py-1 inline-block mx-auto hover:bg-blue-600"

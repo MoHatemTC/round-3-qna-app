@@ -6,6 +6,8 @@ import {
 } from "@nestjs/common";
 import { AppController } from "./app.controller.js";
 import { AppService } from "./app.service.js";
+import { StudentModule } from "./student/student.module.js";
+import { StudentController } from "./student/student.controller.js";
 import { UserModule } from "./user/user.module.js";
 import { MailModule } from "./mail/mail.module.js";
 import { RequireAuth, RequireRole } from "../middlewares/auth.middleware.js";
@@ -24,6 +26,7 @@ import { AttemptController } from "./attempt/attempt.controller.js";
     NotificationsModule,
     QuizModule,
     AttemptModule
+    StudentModule
   ],
   controllers: [AppController],
   providers: [AppService]
@@ -38,6 +41,7 @@ export class AppModule implements NestModule {
         { path: "auth/session", method: RequestMethod.GET },
         QuizController,
         AttemptController
+        StudentController
       );
 
     consumer
@@ -46,5 +50,9 @@ export class AppModule implements NestModule {
         { path: "auth/admin-panel", method: RequestMethod.GET },
         QuizController
       );
+
+    consumer
+      .apply(RequireRole("student"))
+      .forRoutes(StudentController);
   }
 }
