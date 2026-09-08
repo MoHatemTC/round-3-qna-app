@@ -5,6 +5,7 @@ import LoginPage from './pages/LoginPage'
 import { Proxy, PublicRoute } from './utils/proxy';
 import VerifyAccountPage from './pages/VerifyAccountPage';
 import AdminQuizzes from './pages/AdminQuizzes';
+import AdminQuizQuestions from './pages/AdminQuizQuestions';
 import StudentDashboard from './pages/StudentDashboard';
 
 function App() {
@@ -17,6 +18,7 @@ function App() {
       </Route>
       <Route element={<Proxy />}>
         <Route path='/admin-panel' element={<AdminQuizzes />} />
+        <Route path='/admin-panel/quizzes/:quizId/questions' element={<AdminQuizQuestions />} />
         <Route path='/dashboard' element={<StudentDashboard />} />
       </Route>
     </Routes>
