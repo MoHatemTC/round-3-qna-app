@@ -38,9 +38,11 @@ export function Proxy() {
         return <Navigate to={'/admin-panel'} replace />
     }
 
-    if (role === "student" && location.pathname !== "/dashboard") {
-        return <Navigate to={'/dashboard'} replace />
-    }
+    const studentAllowedPaths = ["/dashboard", "/quiz"]
+
+if (role === "student" && !studentAllowedPaths.some(p => location.pathname.startsWith(p))) {
+    return <Navigate to={'/dashboard'} replace />
+}
 
     return <Outlet />
 }

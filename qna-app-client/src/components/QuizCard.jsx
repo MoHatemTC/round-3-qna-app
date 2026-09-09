@@ -1,3 +1,4 @@
+import { useNavigate } from "react-router";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 
@@ -14,8 +15,16 @@ const stateLabels = {
 };
 
 export default function QuizCard({ quiz }) {
+  const navigate = useNavigate();
+
   return (
-    <Card className="hover:shadow-lg transition-shadow duration-200 hover:-translate-y-0.5">
+    <Card
+  onClick={() => {
+    console.log("Card clicked, quiz id:", quiz.id);
+    navigate(`/quiz/${quiz.id}/instructions`);
+  }}
+  className="cursor-pointer hover:shadow-lg transition-shadow duration-200 hover:-translate-y-0.5"
+>
       <CardHeader>
         <div className="flex justify-between items-start">
           <CardTitle className="text-xl">{quiz.title}</CardTitle>
@@ -30,4 +39,5 @@ export default function QuizCard({ quiz }) {
       </CardContent>
     </Card>
   );
+  
 }

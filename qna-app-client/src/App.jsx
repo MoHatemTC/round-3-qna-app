@@ -8,6 +8,10 @@ import AdminQuizzes from './pages/AdminQuizzes';
 import StudentDashboard from './pages/StudentDashboard';
 import InviteEntry from './pages/InviteEntry';
 import QuizPlaceholder from './pages/QuizPlaceholder';
+import QuizInstructions from './pages/QuizInstructions';
+import QuizSolve from './pages/QuizSolve';
+import QuizResult from './pages/QuizResult';
+
 
 function App() {
   return (
@@ -22,6 +26,9 @@ function App() {
         <Route path='/dashboard' element={<StudentDashboard />} />
         <Route path="/quiz/invite/:token" element={<InviteEntry />} />
         <Route path="/quiz/:id" element={<QuizPlaceholder />} />
+        <Route path="/quiz/:id/instructions" element={<QuizInstructions />} />
+        <Route path="/quiz/:id/solve" element={<QuizSolve />} />
+        <Route path="/quiz/:id/result" element={<QuizResult />} />
       
       </Route>
     </Routes>
