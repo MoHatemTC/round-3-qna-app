@@ -22,17 +22,24 @@ enum QuizStatus {
   published
 }
 
+enum AttemptStatus {
+  in_progress
+  submitted
+  auto_submitted
+}
+
 model User {
-  id                   String     @id @default(uuid())
+  id                   String    @id @default(uuid())
   name                 String
-  email                String     @unique
+  email                String    @unique
   password_hash        String
-  role                 Role       @default(student)
+  role                 Role      @default(student)
   verification_token   String?
   verification_expires DateTime?
   email_verified_at    DateTime?
-  created_at           DateTime   @default(now())
+  created_at           DateTime  @default(now())
   quizzes              Quiz[]
+  attempts             Attempt[]
 }
 
 model Quiz {
@@ -47,4 +54,39 @@ model Quiz {
   creator          User       @relation(fields: [created_by], references: [id])
   created_at       DateTime   @default(now())
   updated_at       DateTime   @updatedAt
+  attempts         Attempt[]
+}
+
+model Attempt {
+  id           String          @id @default(uuid())
+  quiz_id      String
+  quiz         Quiz            @relation(fields: [quiz_id], references: [id], onDelete: Cascade)
+  user_id      String
+  user         User            @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  started_at   DateTime        @default(now())
+  submitted_at DateTime?
+  status       AttemptStatus   @default(in_progress)
+  score        Float?
+  percentage   Float?
+  created_at   DateTime        @default(now())
+  updated_at   DateTime        @updatedAt
+  answers      AttemptAnswer[]
+
+  @@unique([quiz_id, user_id])
+}
+
+// question_id/selected_option_id are not FKs yet: Question/Option models
+// don't exist in this schema until the quiz-authoring feature adds them.
+model AttemptAnswer {
+  id                 String   @id @default(uuid())
+  attempt_id         String
+  attempt            Attempt  @relation(fields: [attempt_id], references: [id], onDelete: Cascade)
+  question_id        String
+  selected_option_id String?
+  boolean_answer     Boolean?
+  is_correct         Boolean?
+  created_at         DateTime @default(now())
+  updated_at         DateTime @updatedAt
+
+  @@unique([attempt_id, question_id])
 }

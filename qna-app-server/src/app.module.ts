@@ -15,6 +15,8 @@ import { NotificationsModule } from "./notifications/notifications.module.js";
 import { PrismaModule } from "./prisma.module.js";
 import { QuizModule } from "./quiz/quiz.module.js";
 import { QuizController } from "./quiz/quiz.controller.js";
+import { AttemptModule } from "./attempt/attempt.module.js";
+import { AttemptController } from "./attempt/attempt.controller.js";
 
 @Module({
   imports: [
@@ -23,6 +25,7 @@ import { QuizController } from "./quiz/quiz.controller.js";
     MailModule,
     NotificationsModule,
     QuizModule,
+    AttemptModule,
     StudentModule
   ],
   controllers: [AppController],
@@ -37,6 +40,7 @@ export class AppModule implements NestModule {
         { path: "auth/dashboard", method: RequestMethod.GET },
         { path: "auth/session", method: RequestMethod.GET },
         QuizController,
+        AttemptController,
         StudentController
       );
 
