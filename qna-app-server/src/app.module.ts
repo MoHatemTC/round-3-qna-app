@@ -25,7 +25,7 @@ import { AttemptController } from "./attempt/attempt.controller.js";
     MailModule,
     NotificationsModule,
     QuizModule,
-    AttemptModule
+    AttemptModule,
     StudentModule
   ],
   controllers: [AppController],
@@ -40,7 +40,7 @@ export class AppModule implements NestModule {
         { path: "auth/dashboard", method: RequestMethod.GET },
         { path: "auth/session", method: RequestMethod.GET },
         QuizController,
-        AttemptController
+        AttemptController,
         StudentController
       );
 
