@@ -1,4 +1,12 @@
-import { Body, Controller, Get, Param, Post, Req } from "@nestjs/common";
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Post,
+  Req,
+  UseGuards
+} from "@nestjs/common";
 import {
   ApiCookieAuth,
   ApiOperation,
@@ -13,6 +21,7 @@ import {
   AttemptResultDto,
   StartAttemptResponseDto
 } from "./dto/attempt.dto.js";
+import { EmailVerifiedGuard } from "../user/guards/email-verified.guard.js";
 
 // Auth is wired in AppModule.configure() via the RequireAuth middleware,
 // applied to every route on this controller. Any logged-in user (student or
@@ -24,6 +33,7 @@ export class AttemptController {
   constructor(private attemptService: AttemptService) {}
 
   @Post("/start")
+  @UseGuards(EmailVerifiedGuard)
   @ApiOperation({ summary: "Start (or resume) an attempt on a published quiz" })
   @ApiResponse({
     status: 201,
