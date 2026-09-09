@@ -1,6 +1,13 @@
 import { useEffect, useState } from "react"
 import { Link, useNavigate } from "react-router"
 import { Pencil, Trash2, Plus, X, LogOut, ListChecks } from "lucide-react"
+import {
+  createQuiz,
+  deleteQuiz,
+  getQuizzes,
+  logout,
+  updateQuiz,
+} from "@/services/services"
 import { api } from "@/lib/api"
 import { Button, buttonVariants } from "@/components/ui/button"
 
@@ -48,7 +55,7 @@ export default function AdminQuizzes() {
 
   async function loadQuizzes() {
     try {
-      const data = await api.get("/admin/quizzes")
+      const data = await getQuizzes()
       setQuizzes(data)
       setPageError("")
       setNeedsSignIn(false)
@@ -124,9 +131,9 @@ export default function AdminQuizzes() {
 
     try {
       if (editingId) {
-        await api.put(`/admin/quizzes/${editingId}`, payload)
+        await updateQuiz(editingId, payload)
       } else {
-        await api.post("/admin/quizzes", payload)
+        await createQuiz(payload)
       }
       closeForm()
       await loadQuizzes()
@@ -141,7 +148,7 @@ export default function AdminQuizzes() {
     if (needsSignIn) return
     if (!window.confirm("Delete this quiz? This cannot be undone.")) return
     try {
-      await api.delete(`/admin/quizzes/${id}`)
+      await deleteQuiz(id)
       await loadQuizzes()
     } catch (err) {
       setPageError(err.message)
@@ -150,7 +157,7 @@ export default function AdminQuizzes() {
 
   async function handleSignOut() {
     try {
-      await api.post("/auth/logout", {})
+      await logout()
     } catch {
       // Ignore - we're navigating to /login either way.
     } finally {

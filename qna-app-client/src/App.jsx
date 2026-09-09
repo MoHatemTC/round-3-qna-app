@@ -7,6 +7,8 @@ import VerifyAccountPage from './pages/VerifyAccountPage';
 import AdminQuizzes from './pages/AdminQuizzes';
 import AdminQuizQuestions from './pages/AdminQuizQuestions';
 import StudentDashboard from './pages/StudentDashboard';
+import InviteEntry from './pages/InviteEntry';
+import QuizPlaceholder from './pages/QuizPlaceholder';
 
 function App() {
   return (
@@ -20,6 +22,9 @@ function App() {
         <Route path='/admin-panel' element={<AdminQuizzes />} />
         <Route path='/admin-panel/quizzes/:quizId/questions' element={<AdminQuizQuestions />} />
         <Route path='/dashboard' element={<StudentDashboard />} />
+        <Route path="/quiz/invite/:token" element={<InviteEntry />} />
+        <Route path="/quiz/:id" element={<QuizPlaceholder />} />
+      
       </Route>
     </Routes>
   )

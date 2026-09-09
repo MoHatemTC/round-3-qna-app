@@ -72,15 +72,17 @@ model Attempt {
   started_at   DateTime        @default(now())
   submitted_at DateTime?
   status       AttemptStatus   @default(in_progress)
-  score        Float?          @default(0)
-  percentage   Float?          @default(0)
+  score        Float?
+  percentage   Float?
   created_at   DateTime        @default(now())
   updated_at   DateTime        @updatedAt
   answers      AttemptAnswer[]
+
+  @@unique([quiz_id, user_id])
 }
 
-// question_id/selected_option_id are intentionally not FKs to Question/QuestionOption
-// yet - wiring real FKs (and scoring is_correct off them) is a separate follow-up.
+// question_id/selected_option_id are not FKs yet: Question/Option models
+// don't exist in this schema until the quiz-authoring feature adds them.
 model AttemptAnswer {
   id                 String   @id @default(uuid())
   attempt_id         String
