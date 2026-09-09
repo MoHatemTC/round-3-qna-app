@@ -14,7 +14,6 @@ import { AttemptStatus, QuizStatus } from "../generated/prisma/enums.js";
 export class AttemptService {
   constructor(private prisma: PrismaService) {}
 
-  // min(started_at + quiz duration, quiz.ends_at): an attempt can't outlive the quiz window.
   private computeEndTime(
     startedAt: Date,
     durationMinutes: number,
@@ -39,35 +38,39 @@ export class AttemptService {
     if (now > quiz.ends_at)
       throw new BadRequestException("Quiz has already ended");
 
-    const existing = await this.prisma.attempt.findFirst({
-      where: { quiz_id: quiz.id, user_id: userId }
-    });
-    if (existing) {
-      if (existing.status === AttemptStatus.in_progress) {
-        return {
-          ...existing,
-          end_time: this.computeEndTime(
-            existing.started_at,
-            quiz.duration_minutes,
-            quiz.ends_at
-          )
-        };
+    try {
+      const attempt = await this.prisma.attempt.create({
+        data: { quiz_id: quiz.id, user_id: userId }
+      });
+
+      return {
+        ...attempt,
+        end_time: this.computeEndTime(
+          attempt.started_at,
+          quiz.duration_minutes,
+          quiz.ends_at
+        )
+      };
+    } catch (error: any) {
+      if (error.code === "P2002") {
+        const existing = await this.prisma.attempt.findUnique({
+          where: { quiz_id_user_id: { quiz_id: quiz.id, user_id: userId } }
+        });
+
+        if (existing && existing.status === AttemptStatus.in_progress) {
+          return {
+            ...existing,
+            end_time: this.computeEndTime(
+              existing.started_at,
+              quiz.duration_minutes,
+              quiz.ends_at
+            )
+          };
+        }
+        throw new ConflictException("You have already attempted this quiz");
       }
-      throw new ConflictException("You have already attempted this quiz");
+      throw error;
     }
-
-    const attempt = await this.prisma.attempt.create({
-      data: { quiz_id: quiz.id, user_id: userId }
-    });
-
-    return {
-      ...attempt,
-      end_time: this.computeEndTime(
-        attempt.started_at,
-        quiz.duration_minutes,
-        quiz.ends_at
-      )
-    };
   }
 
   private async findOwnedAttempt(id: string, userId: string) {
@@ -88,6 +91,17 @@ export class AttemptService {
       throw new ConflictException("Attempt already submitted");
     }
 
+    const now = new Date();
+    const endTime = this.computeEndTime(
+      attempt.started_at,
+      attempt.quiz.duration_minutes,
+      attempt.quiz.ends_at
+    );
+
+    if (now > endTime) {
+      throw new BadRequestException("This attempt's time has expired");
+    }
+
     for (const answer of dto.answers) {
       if (
         answer.selected_option_id === undefined &&
@@ -98,15 +112,6 @@ export class AttemptService {
         );
       }
     }
-
-    const now = new Date();
-    const endTime = this.computeEndTime(
-      attempt.started_at,
-      attempt.quiz.duration_minutes,
-      attempt.quiz.ends_at
-    );
-    const status =
-      now > endTime ? AttemptStatus.auto_submitted : AttemptStatus.submitted;
 
     await this.prisma.$transaction([
       ...dto.answers.map((answer) =>
@@ -131,7 +136,7 @@ export class AttemptService {
       ),
       this.prisma.attempt.update({
         where: { id: attempt.id },
-        data: { status, submitted_at: now }
+        data: { status: AttemptStatus.submitted, submitted_at: now }
       })
     ]);
 
@@ -144,6 +149,12 @@ export class AttemptService {
       where: { attempt_id: id },
       orderBy: { created_at: "asc" }
     });
+
+    const isAwaitingGrading =
+      (attempt.status === AttemptStatus.submitted ||
+        attempt.status === AttemptStatus.auto_submitted) &&
+      attempt.score === null;
+
     return {
       id: attempt.id,
       quiz_id: attempt.quiz_id,
@@ -151,6 +162,7 @@ export class AttemptService {
       started_at: attempt.started_at,
       submitted_at: attempt.submitted_at,
       status: attempt.status,
+      grading_status: isAwaitingGrading ? "awaiting_grading" : "graded",
       score: attempt.score,
       percentage: attempt.percentage,
       answers
