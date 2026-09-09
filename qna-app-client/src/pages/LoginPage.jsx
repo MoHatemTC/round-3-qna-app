@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router";
+import SiteHeader from "@/components/SiteHeader";
 
 const LoginPage = () => {
 
@@ -51,43 +52,61 @@ const LoginPage = () => {
     }
 
     return (
-        <main className="min-h-screen flex flex-col items-center justify-center">
-            <h2 className="text-xl font-bold">Welcome back!</h2>
-            <form
-                onSubmit={handleSubmit}
-                className="flex flex-col w-100 border border-gray rounded shadow-sm p-2 mt-5"
-            >
-                <input
-                    type="email"
-                    placeholder="email"
-                    className="p-2 border rounded my-2"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    required
-                />
-                <input
-                    type="password"
-                    placeholder="password"
-                    className="p-2 border rounded"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    required
-                />
-                <button
-                    className="mt-10 cursor-pointer border rounded-full bg-blue-500 text-white w-30 py-1 inline-block mx-auto hover:bg-blue-600"
-                >
-                    {loading ? "Loading..." : "Submit"}
-                </button>
-            </form>
+        <div className="min-h-screen bg-background text-foreground">
+            <SiteHeader />
+            <main className="flex min-h-[calc(100vh-4rem)] flex-col items-center justify-center bg-muted/40 px-6 py-12">
+            <div className="w-full max-w-sm rounded-2xl bg-card p-8 shadow-xl ring-1 ring-foreground/10">
+                <h2 className="text-2xl font-bold text-center">Welcome back</h2>
+                <p className="mt-1 text-sm text-muted-foreground text-center">
+                    Sign in to continue to your account
+                </p>
 
-            <p className="mt-4 text-sm">
-                Don't have an account?{" "}
-                <Link to="/register" className="text-blue-500 underline">
-                    Register
-                </Link>
-            </p>
+                <form onSubmit={handleSubmit} className="mt-6 flex flex-col gap-4">
+                    <div>
+                        <label className="text-sm font-medium" htmlFor="email">
+                            Email address
+                        </label>
+                        <input
+                            id="email"
+                            type="email"
+                            placeholder="you@school.edu"
+                            className="mt-1.5 w-full rounded-lg px-3 py-2 text-sm ring-1 ring-border outline-none focus:ring-2 focus:ring-ring"
+                            value={email}
+                            onChange={(e) => setEmail(e.target.value)}
+                            required
+                        />
+                    </div>
+                    <div>
+                        <label className="text-sm font-medium" htmlFor="password">
+                            Password
+                        </label>
+                        <input
+                            id="password"
+                            type="password"
+                            placeholder="At least 8 characters"
+                            className="mt-1.5 w-full rounded-lg px-3 py-2 text-sm ring-1 ring-border outline-none focus:ring-2 focus:ring-ring"
+                            value={password}
+                            onChange={(e) => setPassword(e.target.value)}
+                            required
+                        />
+                    </div>
+                    <button
+                        disabled={loading}
+                        className="mt-2 w-full rounded-full bg-primary py-2.5 text-sm font-semibold text-primary-foreground hover:bg-primary/85 transition-colors disabled:opacity-50"
+                    >
+                        {loading ? "Signing in..." : "Sign in"}
+                    </button>
+                </form>
 
-        </main>
+                <p className="mt-6 text-sm text-center text-muted-foreground">
+                    Don't have an account?{" "}
+                    <Link to="/register" className="font-semibold text-orange-600 hover:underline">
+                        Register →
+                    </Link>
+                </p>
+            </div>
+            </main>
+        </div>
     )
 }
 
