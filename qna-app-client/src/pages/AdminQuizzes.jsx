@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react"
 import { Link, useNavigate } from "react-router"
-import { Pencil, Trash2, Plus, X, LogOut } from "lucide-react"
+import { Pencil, Trash2, Plus, X, LogOut, ListChecks } from "lucide-react"
 import {
   createQuiz,
   deleteQuiz,
@@ -8,7 +8,8 @@ import {
   logout,
   updateQuiz,
 } from "@/services/services"
-import { Button } from "@/components/ui/button"
+import { api } from "@/lib/api"
+import { Button, buttonVariants } from "@/components/ui/button"
 
 // Admin: Quizzes & Question Bank
 // Quiz list + create/edit form for /admin/quizzes. Requires an admin session
@@ -364,6 +365,14 @@ export default function AdminQuizzes() {
                 <td className="px-4 py-2 text-foreground">{formatDate(quiz.ends_at)}</td>
                 <td className="px-4 py-2">
                   <div className="flex justify-end gap-1">
+                    <Link
+                      to={`/admin-panel/quizzes/${quiz.id}/questions`}
+                      className={buttonVariants({ variant: "ghost", size: "icon-sm" })}
+                      aria-label={`Questions for ${quiz.title}`}
+                      title="Manage questions"
+                    >
+                      <ListChecks />
+                    </Link>
                     <Button
                       variant="ghost"
                       size="icon-sm"
