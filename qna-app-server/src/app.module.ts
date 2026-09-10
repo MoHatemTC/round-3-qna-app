@@ -15,6 +15,8 @@ import { NotificationsModule } from "./notifications/notifications.module.js";
 import { PrismaModule } from "./prisma.module.js";
 import { QuizModule } from "./quiz/quiz.module.js";
 import { QuizController } from "./quiz/quiz.controller.js";
+import { QuestionModule } from "./question/question.module.js";
+import { QuestionController } from "./question/question.controller.js";
 import { AttemptModule } from "./attempt/attempt.module.js";
 import { AttemptController } from "./attempt/attempt.controller.js";
 
@@ -25,6 +27,7 @@ import { AttemptController } from "./attempt/attempt.controller.js";
     MailModule,
     NotificationsModule,
     QuizModule,
+    QuestionModule,
     AttemptModule,
     StudentModule
   ],
@@ -40,6 +43,7 @@ export class AppModule implements NestModule {
         { path: "auth/dashboard", method: RequestMethod.GET },
         { path: "auth/session", method: RequestMethod.GET },
         QuizController,
+        QuestionController,
         AttemptController,
         StudentController
       );
@@ -48,7 +52,8 @@ export class AppModule implements NestModule {
       .apply(RequireRole("admin"))
       .forRoutes(
         { path: "auth/admin-panel", method: RequestMethod.GET },
-        QuizController
+        QuizController,
+        QuestionController
       );
 
     consumer

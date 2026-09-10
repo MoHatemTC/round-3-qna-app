@@ -28,6 +28,11 @@ enum AttemptStatus {
   auto_submitted
 }
 
+enum QuestionType {
+  mcq
+  true_false
+}
+
 model User {
   id                   String    @id @default(uuid())
   name                 String
@@ -55,6 +60,7 @@ model Quiz {
   created_at       DateTime   @default(now())
   updated_at       DateTime   @updatedAt
   attempts         Attempt[]
+  questions        Question[]
 }
 
 model Attempt {
@@ -89,4 +95,26 @@ model AttemptAnswer {
   updated_at         DateTime @updatedAt
 
   @@unique([attempt_id, question_id])
+}
+
+model Question {
+  id         String           @id @default(uuid())
+  quiz_id    String
+  quiz       Quiz             @relation(fields: [quiz_id], references: [id], onDelete: Cascade)
+  type       QuestionType
+  text       String
+  points     Int              @default(1)
+  created_at DateTime         @default(now())
+  updated_at DateTime         @updatedAt
+  options    QuestionOption[]
+}
+
+model QuestionOption {
+  id          String   @id @default(uuid())
+  question_id String
+  question    Question @relation(fields: [question_id], references: [id], onDelete: Cascade)
+  text        String
+  is_correct  Boolean  @default(false)
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
 }

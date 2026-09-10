@@ -34,7 +34,7 @@ export function Proxy() {
 
     const role = session.role
 
-    if (role === "admin" && location.pathname !== "/admin-panel") {
+    if (role === "admin" && !location.pathname.startsWith("/admin-panel")) {
         return <Navigate to={'/admin-panel'} replace />
     }
 
