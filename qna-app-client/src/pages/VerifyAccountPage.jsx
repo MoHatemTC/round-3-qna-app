@@ -18,16 +18,9 @@ const VerifyAccountPage = () => {
     setLoading(true)
 
     try {
-      const res = await fetch(`http://localhost:3000/auth/verify-email`, {
-        method: "POST",
+      const res = await fetch(`http://localhost:3000/auth/verify-email?email=${encodeURIComponent(email)}&token=${encodeURIComponent(token)}`, {
+        method: "GET",
         credentials: "include",
-        body: JSON.stringify({
-          email,
-          token
-        }),
-        headers: {
-          "Content-Type": "application/json"
-        }
       })
 
       const data = await res.json()
