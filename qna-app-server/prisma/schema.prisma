@@ -22,6 +22,17 @@ enum QuizStatus {
   published
 }
 
+enum EmailType {
+  verification
+  invitation
+}
+
+enum EmailStatus {
+  pending
+  sent
+  failed
+}
+
 enum AttemptStatus {
   in_progress
   submitted
@@ -97,6 +108,17 @@ model AttemptAnswer {
   @@unique([attempt_id, question_id])
 }
 
+model EmailDeliveryLog {
+  id            String      @id @default(uuid())
+  type          EmailType
+  recipient     String
+  related_id    String?
+  status        EmailStatus @default(pending)
+  error_message String?
+  sent_at       DateTime?
+  created_at    DateTime    @default(now())
+
+  @@map("email_delivery_logs")
 model Question {
   id         String           @id @default(uuid())
   quiz_id    String

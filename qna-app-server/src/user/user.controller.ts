@@ -6,13 +6,14 @@ import {
   HttpStatus,
   Post,
   Res,
-  Req
+  Req,
+  Query
 } from "@nestjs/common";
-import { CreateUserDTO } from "./create-user-dto.js";
+import { CreateUserDTO } from "./dto/create-user-dto.js";
 import { UserService } from "./user.service.js";
-import { LoginUserDTO } from "./login-user-dto.js";
+import { LoginUserDTO } from "./dto/login-user-dto.js";
 import type { Response, Request } from "express";
-import { VerifyEmailDTO } from "./verify-email-dto.js";
+import { ResendVerificationDTO } from "./dto/resend-verification-dto.js";
 @Controller("/auth")
 export class UserController {
   constructor(private userService: UserService) {}
@@ -57,17 +58,22 @@ export class UserController {
     return { message: "Signed out" };
   }
 
-  @Post("/verify-email")
+  @Get("/verify-email")
   @HttpCode(HttpStatus.OK)
-  async verifyEmail(@Body() { email, token }: VerifyEmailDTO) {
+  async verifyEmail(
+    @Query("email") email: string,
+    @Query("token") token: string
+  ) {
     return await this.userService.verifyEmailToken(email, token);
   }
-  @Get("/dashboard")
-  dashboard() {
-    return "Welcome student";
-  }
-  @Get("/admin-panel")
-  adminPanel() {
-    return "Welcome admin";
+
+  @Post("/resend-verification")
+  @HttpCode(HttpStatus.OK)
+  async resendVerification(
+    @Body() resendVerificationDto: ResendVerificationDTO
+  ) {
+    return await this.userService.resendVerificationEmail(
+      resendVerificationDto.email
+    );
   }
 }

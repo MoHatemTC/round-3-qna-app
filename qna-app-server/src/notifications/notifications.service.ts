@@ -2,26 +2,34 @@ import { BadRequestException, Injectable } from "@nestjs/common";
 import { QuizInvitationTemplate } from "./templates/quiz-invitation-template.js";
 import { VerifyEmailTemplate } from "./templates/verifiy-email-template.js";
 import { MailerAdapter } from "./adapters/mailer.adapter.js";
+import { PrismaService } from "../prisma.service.js";
+import { EmailType, EmailStatus } from "../../src/generated/prisma/client.js";
 
 @Injectable()
 export class NotificationService {
-  constructor(private notificationAdapter: MailerAdapter) {}
+  constructor(
+    private notificationAdapter: MailerAdapter,
+    private prismaService: PrismaService
+  ) {}
 
   async send(
     type: "verify-email" | "quiz-invitation",
     recipient: string,
     token: string,
     quizTitle: string,
-    link: string
+    link: string,
+    relatedId?: string
   ) {
     let subject = "";
     let body = "";
+    let emailType: EmailType;
 
     switch (type) {
       case "verify-email": {
         const verifyData = VerifyEmailTemplate(token);
         subject = verifyData.subject;
         body = verifyData.body;
+        emailType = EmailType.verification;
         break;
       }
 
@@ -29,6 +37,7 @@ export class NotificationService {
         const quizData = QuizInvitationTemplate(quizTitle, link);
         subject = quizData.subject;
         body = quizData.body;
+        emailType = EmailType.invitation;
         break;
       }
 
@@ -36,6 +45,34 @@ export class NotificationService {
         throw new BadRequestException(`Invalid type: ${type}`);
     }
 
-    await this.notificationAdapter.send(recipient, subject, body);
+    const log = await this.prismaService.emailDeliveryLog.create({
+      data: {
+        type: emailType,
+        recipient,
+        related_id: relatedId,
+        status: EmailStatus.pending
+      }
+    });
+
+    try {
+      await this.notificationAdapter.send(recipient, subject, body);
+
+      await this.prismaService.emailDeliveryLog.update({
+        where: { id: log.id },
+        data: {
+          status: EmailStatus.sent,
+          sent_at: new Date()
+        }
+      });
+    } catch (error) {
+      await this.prismaService.emailDeliveryLog.update({
+        where: { id: log.id },
+        data: {
+          status: EmailStatus.failed,
+          error_message: error.message || "Unknown error occurred"
+        }
+      });
+      throw error;
+    }
   }
 }

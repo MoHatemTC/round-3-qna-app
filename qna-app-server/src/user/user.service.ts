@@ -2,16 +2,16 @@ import {
   BadRequestException,
   ConflictException,
   Injectable,
+  NotFoundException,
   UnauthorizedException
 } from "@nestjs/common";
 import { PrismaService } from "../prisma.service.js";
 import * as bcrypt from "bcryptjs";
-import { CreateUserDTO } from "./create-user-dto.js";
-import { LoginUserDTO } from "./login-user-dto.js";
+import { CreateUserDTO } from "./dto/create-user-dto.js";
+import { LoginUserDTO } from "./dto/login-user-dto.js";
 import { JwtService } from "@nestjs/jwt";
-import { MailService } from "../mail/mail.service.js";
-import { VerifyEmailTemplate } from "./../notifications/templates/verifiy-email-template.js";
 import { randomInt } from "node:crypto";
+import { NotificationService } from "../notifications/notifications.service.js";
 
 const DUMMY_HASH =
   "$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy";
@@ -21,7 +21,7 @@ export class UserService {
   constructor(
     private prismaService: PrismaService,
     private jwtService: JwtService,
-    private mailService: MailService
+    private notificationService: NotificationService
   ) {}
 
   private async encryptPassword(plainText: string, saltRound: number) {
@@ -47,7 +47,7 @@ export class UserService {
 
     const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
 
-    await this.prismaService.user.create({
+    const newUser = await this.prismaService.user.create({
       data: {
         name,
         email,
@@ -57,12 +57,13 @@ export class UserService {
       }
     });
 
-    const verificationEmail = VerifyEmailTemplate(token);
-
-    await this.mailService.sendGenericEmail(
+    await this.notificationService.send(
+      "verify-email",
       email,
-      verificationEmail.subject,
-      verificationEmail.body
+      token,
+      "",
+      "",
+      newUser.id
     );
 
     return {
@@ -70,7 +71,7 @@ export class UserService {
     };
   }
 
-  async login({ email, password }: LoginUserDTO) {  
+  async login({ email, password }: LoginUserDTO) {
     const user = await this.prismaService.user.findUnique({
       where: { email }
     });
@@ -106,6 +107,10 @@ export class UserService {
       throw new BadRequestException("Invalid verification request");
     }
 
+    if (user.email_verified_at) {
+      throw new ConflictException("This account already verfied");
+    }
+
     if (new Date() > user.verification_expires) {
       throw new BadRequestException("Verification token has expired");
     }
@@ -126,5 +131,42 @@ export class UserService {
     });
 
     return { message: "Email verified successfully!" };
+  }
+
+  async resendVerificationEmail(email: string) {
+    const user = await this.prismaService.user.findUnique({
+      where: { email }
+    });
+
+    if (!user) {
+      throw new NotFoundException("User not found");
+    }
+
+    if (user.email_verified_at !== null) {
+      throw new BadRequestException("This account is already verified.");
+    }
+
+    const token = randomInt(100_000, 1_000_000).toString();
+    const hashedToken = await this.encryptToken(token, 10);
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+
+    await this.prismaService.user.update({
+      where: { email },
+      data: {
+        verification_token: hashedToken,
+        verification_expires: expiresAt
+      }
+    });
+
+    await this.notificationService.send(
+      "verify-email",
+      email,
+      token,
+      "",
+      "",
+      user.id
+    );
+
+    return { message: "Verification email resent successfully." };
   }
 }
