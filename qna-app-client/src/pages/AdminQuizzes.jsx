@@ -1,8 +1,15 @@
 import { useEffect, useState } from "react"
 import { Link, useNavigate } from "react-router"
-import { Pencil, Trash2, Plus, X, LogOut } from "lucide-react"
+import { Pencil, Trash2, Plus, X, LogOut, ListChecks } from "lucide-react"
+import {
+  createQuiz,
+  deleteQuiz,
+  getQuizzes,
+  logout,
+  updateQuiz,
+} from "@/services/services"
 import { api } from "@/lib/api"
-import { Button } from "@/components/ui/button"
+import { Button, buttonVariants } from "@/components/ui/button"
 
 // Admin: Quizzes & Question Bank
 // Quiz list + create/edit form for /admin/quizzes. Requires an admin session
@@ -48,7 +55,7 @@ export default function AdminQuizzes() {
 
   async function loadQuizzes() {
     try {
-      const data = await api.get("/admin/quizzes")
+      const data = await getQuizzes()
       setQuizzes(data)
       setPageError("")
       setNeedsSignIn(false)
@@ -124,9 +131,9 @@ export default function AdminQuizzes() {
 
     try {
       if (editingId) {
-        await api.put(`/admin/quizzes/${editingId}`, payload)
+        await updateQuiz(editingId, payload)
       } else {
-        await api.post("/admin/quizzes", payload)
+        await createQuiz(payload)
       }
       closeForm()
       await loadQuizzes()
@@ -141,7 +148,7 @@ export default function AdminQuizzes() {
     if (needsSignIn) return
     if (!window.confirm("Delete this quiz? This cannot be undone.")) return
     try {
-      await api.delete(`/admin/quizzes/${id}`)
+      await deleteQuiz(id)
       await loadQuizzes()
     } catch (err) {
       setPageError(err.message)
@@ -150,7 +157,7 @@ export default function AdminQuizzes() {
 
   async function handleSignOut() {
     try {
-      await api.post("/auth/logout", {})
+      await logout()
     } catch {
       // Ignore - we're navigating to /login either way.
     } finally {
@@ -358,6 +365,14 @@ export default function AdminQuizzes() {
                 <td className="px-4 py-2 text-foreground">{formatDate(quiz.ends_at)}</td>
                 <td className="px-4 py-2">
                   <div className="flex justify-end gap-1">
+                    <Link
+                      to={`/admin-panel/quizzes/${quiz.id}/questions`}
+                      className={buttonVariants({ variant: "ghost", size: "icon-sm" })}
+                      aria-label={`Questions for ${quiz.title}`}
+                      title="Manage questions"
+                    >
+                      <ListChecks />
+                    </Link>
                     <Button
                       variant="ghost"
                       size="icon-sm"

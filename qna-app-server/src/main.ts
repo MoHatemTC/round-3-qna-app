@@ -29,6 +29,8 @@ async function bootstrap() {
     .setVersion("1.0")
     .addTag("auth")
     .addTag("quizzes")
+    .addTag("questions")
+    .addTag("attempts")
     .addCookieAuth("token")
     .build();
   const documentFactory = () => SwaggerModule.createDocument(app, config);
