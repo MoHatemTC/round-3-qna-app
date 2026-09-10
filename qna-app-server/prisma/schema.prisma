@@ -119,6 +119,8 @@ model EmailDeliveryLog {
   created_at    DateTime    @default(now())
 
   @@map("email_delivery_logs")
+}
+
 model Question {
   id         String           @id @default(uuid())
   quiz_id    String
