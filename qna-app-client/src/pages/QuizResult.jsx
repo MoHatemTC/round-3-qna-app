@@ -7,9 +7,9 @@ export default function QuizResult() {
   const { state } = useLocation();
   const navigate = useNavigate();
 
-  // TEMP MOCK — replace with real fields once /attempts/{id}/submit is live
-  const score = state?.score ?? 2;
-  const total = state?.total ?? 3;
+  const score = state?.score;
+  const total = state?.total;
+  const awaitingGrading = state?.grading_status === "awaiting_grading" || score == null || total == null;
 
   return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center p-6">
@@ -19,9 +19,11 @@ export default function QuizResult() {
           <CardTitle className="text-2xl">Quiz Submitted</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <p className="text-3xl font-bold">
-            {score} / {total}
-          </p>
+          {awaitingGrading ? (
+            <p className="text-lg font-semibold">Your submission is awaiting grading.</p>
+          ) : (
+            <p className="text-3xl font-bold">{score} / {total}</p>
+          )}
           <p className="text-sm text-muted-foreground">
             Your responses have been recorded.
           </p>

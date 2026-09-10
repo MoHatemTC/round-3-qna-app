@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router";
 import SiteHeader from "@/components/SiteHeader";
+import { api } from "@/lib/api";
 
 const RegisterPage = () => {
 
@@ -10,40 +11,21 @@ const RegisterPage = () => {
     const [email, setEmail] = useState("")
     const [password, setPassword] = useState("")
     const [loading, setLoading] = useState(false)
+    const [error, setError] = useState("")
 
     async function handleSubmit(e) {
         e.preventDefault()
 
         setLoading(true)
+        setError("")
 
         try {
-
-            const res = await fetch('http://localhost:3000/auth/register', {
-                method: "POST",
-                body: JSON.stringify({
-                    name,
-                    email,
-                    password
-                }),
-                headers: {
-                    "Content-Type": "application/json"
-                }
-            })
-
-            const data = await res.json()
-
-            if (!res.ok) {
-                const detail = Array.isArray(data.message)
-                    ? data.message.join("\n")
-                    : data.message || data.error || 'ERROR'
-                window.alert(detail)
-                return
-            }
+            await api.post("/auth/register", { name, email, password })
 
             navigate('/verify-account', { state: { email } })
 
         } catch (error) {
-            window.alert(error instanceof Error ? error.message : "REGISTER ERROR!")
+            setError(error instanceof Error ? error.message : "Unable to create your account. Please try again.")
         } finally {
             setLoading(false)
         }
@@ -58,6 +40,8 @@ const RegisterPage = () => {
                 <p className="mt-1 text-sm text-muted-foreground text-center">
                     Start free — no card required
                 </p>
+
+                {error && <p role="alert" className="mt-4 text-sm text-destructive">{error}</p>}
 
                 <form onSubmit={handleSubmit} className="mt-6 flex flex-col gap-4">
                     <div>

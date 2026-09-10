@@ -1,12 +1,14 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router";
 import SiteHeader from "@/components/SiteHeader";
+import { api } from "@/lib/api";
 
 const LoginPage = () => {
 
     const [email, setEmail] = useState("")
     const [password, setPassword] = useState("")
     const [loading, setLoading] = useState(false)
+    const [error, setError] = useState("")
 
     const navigate = useNavigate()
 
@@ -14,34 +16,15 @@ const LoginPage = () => {
         e.preventDefault()
 
         setLoading(true)
+        setError("")
 
         try {
-            const res = await fetch(`http://localhost:3000/auth/login`, {
-                method: "POST",
-                credentials: "include",
-                body: JSON.stringify({
-                    email,
-                    password
-                }),
-                headers: {
-                    "Content-Type": "application/json"
-                }
-            })
-
-            const data = await res.json()
-
-            if (!res.ok) {
-                const detail = Array.isArray(data.message)
-                    ? data.message.join("\n")
-                    : data.message || data.error || "Error"
-                window.alert(detail)
-                return
-            }
+            await api.post("/auth/login", { email, password })
 
             navigate('/dashboard', { replace: true })
 
         } catch (error) {
-            window.alert(error instanceof Error ? error.message : "Error while fetching")
+            setError(error instanceof Error ? error.message : "Unable to sign in. Please try again.")
         } finally {
             setLoading(false)
         }
@@ -60,6 +43,8 @@ const LoginPage = () => {
                 <p className="mt-1 text-sm text-muted-foreground text-center">
                     Sign in to continue to your account
                 </p>
+
+                {error && <p role="alert" className="mt-4 text-sm text-destructive">{error}</p>}
 
                 <form onSubmit={handleSubmit} className="mt-6 flex flex-col gap-4">
                     <div>
