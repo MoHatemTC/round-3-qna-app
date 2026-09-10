@@ -60,11 +60,8 @@ export class UserController {
 
   @Get("/verify-email")
   @HttpCode(HttpStatus.OK)
-  async verifyEmail(
-    @Query("email") email: string,
-    @Query("token") token: string
-  ) {
-    return await this.userService.verifyEmailToken(email, token);
+  async verifyEmail(@Query("token") token: string) {
+    return await this.userService.verifyEmailToken(token);
   }
 
   @Post("/resend-verification")
@@ -72,8 +69,6 @@ export class UserController {
   async resendVerification(
     @Body() resendVerificationDto: ResendVerificationDTO
   ) {
-    return await this.userService.resendVerificationEmail(
-      resendVerificationDto.email
-    );
+    return await this.userService.resendVerificationEmail(resendVerificationDto.email);
   }
 }

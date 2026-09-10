@@ -10,7 +10,7 @@ import * as bcrypt from "bcryptjs";
 import { CreateUserDTO } from "./dto/create-user-dto.js";
 import { LoginUserDTO } from "./dto/login-user-dto.js";
 import { JwtService } from "@nestjs/jwt";
-import { randomInt } from "node:crypto";
+import { createHash, randomBytes, randomInt } from "node:crypto";
 import { NotificationService } from "../notifications/notifications.service.js";
 
 const DUMMY_HASH =
@@ -29,7 +29,7 @@ export class UserService {
   }
 
   private async encryptToken(plainToken: string, saltRound: number) {
-    return await bcrypt.hash(plainToken, saltRound);
+    return createHash("sha256").update(plainToken).digest("hex");
   }
 
   async register({ name, email, password }: CreateUserDTO) {
@@ -53,7 +53,8 @@ export class UserService {
         email,
         password_hash: hashedPassword,
         verification_token: hashedToken,
-        verification_expires: expiresAt
+        verification_expires: expiresAt,
+        verification_sent_at: new Date()
       }
     });
 
@@ -61,7 +62,6 @@ export class UserService {
       "verify-email",
       email,
       token,
-      "",
       "",
       newUser.id
     );
@@ -85,7 +85,32 @@ export class UserService {
     }
 
     if (user.email_verified_at === null) {
-      throw new UnauthorizedException("Please verify your account");
+      const token = randomInt(100_000, 1_000_000).toString();
+      const hashedToken = await this.encryptToken(token, 10);
+      const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+
+      await this.prismaService.user.update({
+        where: { id: user.id },
+        data: {
+          verification_token: hashedToken,
+          verification_expires: expiresAt,
+          verification_sent_at: new Date()
+        }
+      });
+
+      await this.notificationService.send(
+        "verify-email",
+        email,
+        token,
+        "",
+        user.id
+      );
+
+      throw new UnauthorizedException({
+        message: "Please verify your account",
+        code: "UNVERIFIED_ACCOUNT",
+        email: email
+      });
     }
 
     const token = await this.jwtService.signAsync({
@@ -98,31 +123,28 @@ export class UserService {
     };
   }
 
-  async verifyEmailToken(email: string, token: string) {
-    const user = await this.prismaService.user.findUnique({
-      where: { email }
+  async verifyEmailToken(token: string) {
+    if (!token) throw new BadRequestException("Verification token is required");
+    const tokenHash = await this.encryptToken(token, 0);
+    const user = await this.prismaService.user.findFirst({
+      where: { verification_token: tokenHash }
     });
 
-    if (!user || !user.verification_token || !user.verification_expires) {
+    if (!user) throw new BadRequestException("Invalid verification token");
+    if (user.email_verified_at)
+      return {
+        status: "already_verified",
+        message: "Email is already verified."
+      };
+    if (!user.verification_expires)
       throw new BadRequestException("Invalid verification request");
-    }
-
-    if (user.email_verified_at) {
-      throw new ConflictException("This account already verfied");
-    }
 
     if (new Date() > user.verification_expires) {
       throw new BadRequestException("Verification token has expired");
     }
 
-    const isTokenValid = await bcrypt.compare(token, user.verification_token);
-
-    if (!isTokenValid) {
-      throw new BadRequestException("Invalid verification token");
-    }
-
     await this.prismaService.user.update({
-      where: { email },
+      where: { id: user.id },
       data: {
         email_verified_at: new Date(),
         verification_token: null,
@@ -130,7 +152,7 @@ export class UserService {
       }
     });
 
-    return { message: "Email verified successfully!" };
+    return { status: "verified", message: "Email verified successfully!" };
   }
 
   async resendVerificationEmail(email: string) {
@@ -146,15 +168,24 @@ export class UserService {
       throw new BadRequestException("This account is already verified.");
     }
 
+    if (
+      user.verification_sent_at &&
+      Date.now() - user.verification_sent_at.getTime() < 60_000
+    ) {
+      throw new BadRequestException(
+        "Please wait one minute before requesting another email."
+      );
+    }
     const token = randomInt(100_000, 1_000_000).toString();
     const hashedToken = await this.encryptToken(token, 10);
-    const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
 
     await this.prismaService.user.update({
       where: { email },
       data: {
         verification_token: hashedToken,
-        verification_expires: expiresAt
+        verification_expires: expiresAt,
+        verification_sent_at: new Date()
       }
     });
 
@@ -162,7 +193,6 @@ export class UserService {
       "verify-email",
       email,
       token,
-      "",
       "",
       user.id
     );

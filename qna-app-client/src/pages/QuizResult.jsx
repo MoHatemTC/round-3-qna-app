@@ -8,8 +8,8 @@ export default function QuizResult() {
   const navigate = useNavigate();
 
   const score = state?.score;
-  const total = state?.total;
-  const awaitingGrading = state?.grading_status === "awaiting_grading" || score == null || total == null;
+  const maxScore = state?.max_score;
+  const awaitingGrading = state?.grading_status === "awaiting_grading" || score == null || maxScore == null;
 
   return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center p-6">
@@ -22,7 +22,10 @@ export default function QuizResult() {
           {awaitingGrading ? (
             <p className="text-lg font-semibold">Your submission is awaiting grading.</p>
           ) : (
-            <p className="text-3xl font-bold">{score} / {total}</p>
+            <div>
+              <p className="text-3xl font-bold">{score} / {maxScore}</p>
+              <p className="text-sm text-muted-foreground">{Number(state?.percentage ?? 0).toFixed(1)}%</p>
+            </div>
           )}
           <p className="text-sm text-muted-foreground">
             Your responses have been recorded.

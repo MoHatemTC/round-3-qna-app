@@ -27,6 +27,21 @@
 
 ## Project setup
 
+## Database migrations
+
+This project uses Prisma migrations with PostgreSQL. Migration directories use
+the convention `YYYYMMDDHHMM_short_description`, for example
+`20260910180000_fix_attempts_and_add_invitations`.
+
+Create and apply a migration with:
+
+```bash
+npx prisma migrate dev --name short_description
+```
+
+The application enforces one open attempt per student and quiz in service
+logic; submitted attempts are retained for history and scoring.
+
 ```bash
 $ npm install
 ```

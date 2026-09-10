@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -10,6 +10,11 @@ export default function QuizInstructions() {
   const navigate = useNavigate();
   const [starting, setStarting] = useState(false);
   const [error, setError] = useState("");
+  const [quiz, setQuiz] = useState(null);
+
+  useEffect(() => {
+    api.get(`/student/quizzes/${id}`).then(setQuiz).catch((err) => setError(err.message));
+  }, [id]);
 
   const handleStart = async () => {
     if (starting) return;
@@ -30,9 +35,9 @@ export default function QuizInstructions() {
   };
 
   const rules = [
-    { icon: Clock, label: "Duration", value: "30 minutes" },
-    { icon: FileQuestion, label: "Questions", value: "10 questions" },
-    { icon: RotateCcw, label: "Attempts allowed", value: "1 attempt" },
+    { icon: Clock, label: "Duration", value: `${quiz?.duration ?? "-"} minutes` },
+    { icon: FileQuestion, label: "Questions", value: `${quiz?.question_count ?? "-"} questions` },
+    { icon: RotateCcw, label: "Attempts allowed", value: `${quiz?.attempts_allowed ?? 1} attempt` },
   ];
 
   return (
@@ -75,7 +80,7 @@ export default function QuizInstructions() {
             </p>
           )}
 
-          <Button onClick={handleStart} disabled={starting} className="w-full" size="lg">
+          <Button onClick={handleStart} disabled={starting || !quiz} className="w-full" size="lg">
             {starting ? "Starting..." : "Start Quiz"}
           </Button>
         </CardContent>

@@ -1,10 +1,11 @@
 import { useState } from "react";
-import { Link, useLocation, useNavigate } from "react-router";
+import { Link, useLocation, useNavigate, useSearchParams } from "react-router";
 import { api } from "@/lib/api";
 
 const VerifyAccountPage = () => {
 
-  const [token, setToken] = useState("")
+  const [searchParams] = useSearchParams()
+  const [token, setToken] = useState(searchParams.get("token") ?? "")
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
   const [verified, setVerified] = useState(false)
@@ -22,7 +23,7 @@ const VerifyAccountPage = () => {
     setError("")
 
     try {
-      await api.get(`/auth/verify-email?email=${encodeURIComponent(email)}&token=${encodeURIComponent(token)}`)
+      await api.get(`/auth/verify-email?token=${encodeURIComponent(token)}`)
       setVerified(true)
 
     } catch (error) {
@@ -32,7 +33,7 @@ const VerifyAccountPage = () => {
     }
   }
 
-  if (!email) {
+  if (!email && !token) {
     return (
       <main className="min-h-screen flex flex-col items-center justify-center">
         <h2 className="text-xl font-bold">Verify Account!</h2>
@@ -87,6 +88,10 @@ const VerifyAccountPage = () => {
           {loading ? "Loading..." : "Submit"}
         </button>
       </form>
+      {email && <button type="button" className="mt-4 text-sm underline" onClick={async () => {
+        try { await api.post("/auth/resend-verification", { email }); setError("A new verification email was sent.") }
+        catch (resendError) { setError(resendError.message) }
+      }}>Resend verification email</button>}
 
     </main>
   )
