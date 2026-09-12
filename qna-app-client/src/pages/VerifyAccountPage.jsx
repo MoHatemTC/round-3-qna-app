@@ -1,10 +1,14 @@
 import { useState } from "react";
-import { Link, useLocation, useNavigate } from "react-router";
+import { Link, useLocation, useNavigate, useSearchParams } from "react-router";
+import { api } from "@/lib/api";
 
 const VerifyAccountPage = () => {
 
-  const [token, setToken] = useState("")
+  const [searchParams] = useSearchParams()
+  const [token, setToken] = useState(searchParams.get("token") ?? "")
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState("")
+  const [verified, setVerified] = useState(false)
 
   const navigate = useNavigate()
 
@@ -16,35 +20,20 @@ const VerifyAccountPage = () => {
     e.preventDefault()
 
     setLoading(true)
+    setError("")
 
     try {
-      const res = await fetch(`http://localhost:3000/auth/verify-email?email=${encodeURIComponent(email)}&token=${encodeURIComponent(token)}`, {
-        method: "GET",
-        credentials: "include",
-      })
-
-      const data = await res.json()
-
-      if (!res.ok) {
-        const detail = Array.isArray(data.message)
-          ? data.message.join("\n")
-          : data.message || data.error || "Error"
-        window.alert(detail)
-        return
-      }
-
-      window.alert(data.message || "Account verified, please try to login")
-
-      navigate('/login', { replace: true })
+      await api.get(`/auth/verify-email?token=${encodeURIComponent(token)}`)
+      setVerified(true)
 
     } catch (error) {
-      window.alert(error instanceof Error ? error.message : "Error while fetching")
+      setError(error instanceof Error ? error.message : "This verification link is invalid or expired.")
     } finally {
       setLoading(false)
     }
   }
 
-  if (!email) {
+  if (!email && !token) {
     return (
       <main className="min-h-screen flex flex-col items-center justify-center">
         <h2 className="text-xl font-bold">Verify Account!</h2>
@@ -59,6 +48,22 @@ const VerifyAccountPage = () => {
     )
   }
 
+  if (verified) {
+    return (
+      <main className="min-h-screen flex flex-col items-center justify-center p-6 text-center">
+        <h2 className="text-xl font-bold">Email verified</h2>
+        <p className="mt-4 text-sm text-muted-foreground">Your account is ready. Sign in to continue.</p>
+        <button
+          type="button"
+          onClick={() => navigate("/login", { replace: true })}
+          className="mt-6 rounded-full bg-blue-500 px-5 py-2 text-sm text-white hover:bg-blue-600"
+        >
+          Continue to sign in
+        </button>
+      </main>
+    )
+  }
+
   return (
     <main className="min-h-screen flex flex-col items-center justify-center">
       <h2 className="text-xl font-bold">Verify Account!</h2>
@@ -66,6 +71,7 @@ const VerifyAccountPage = () => {
         onSubmit={handleSubmit}
         className="flex flex-col w-100 border border-gray rounded shadow-sm p-2 mt-5"
       >
+        {error && <p role="alert" className="text-sm text-red-600">{error}</p>}
         <input
           type="text"
           placeholder="Enter token"
@@ -75,11 +81,17 @@ const VerifyAccountPage = () => {
           required
         />
         <button
+          type="submit"
+          disabled={loading}
           className="mt-10 cursor-pointer border rounded-full bg-blue-500 text-white w-30 py-1 inline-block mx-auto hover:bg-blue-600"
         >
           {loading ? "Loading..." : "Submit"}
         </button>
       </form>
+      {email && <button type="button" className="mt-4 text-sm underline" onClick={async () => {
+        try { await api.post("/auth/resend-verification", { email }); setError("A new verification email was sent.") }
+        catch (resendError) { setError(resendError.message) }
+      }}>Resend verification email</button>}
 
     </main>
   )

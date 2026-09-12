@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import QuizCard from "../components/QuizCard";
+import { api } from "@/lib/api";
 
 export default function StudentDashboard() {
   const [quizzes, setQuizzes] = useState([]);
@@ -7,14 +8,16 @@ export default function StudentDashboard() {
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    fetch("http://localhost:3000/student/quizzes", { credentials: "include" })
-      .then((res) => {
-        if (!res.ok) throw new Error("Failed to load quizzes");
-        return res.json();
+    let active = true;
+    api.get("/student/quizzes")
+      .then((data) => {
+        if (active) setQuizzes(Array.isArray(data) ? data : []);
       })
-      .then((data) => setQuizzes(data))
-      .catch((err) => setError(err.message))
+      .catch((err) => {
+        if (active) setError(err.message || "Failed to load quizzes.");
+      })
       .finally(() => setLoading(false));
+    return () => { active = false; };
   }, []);
 
   if (loading) return <div className="min-h-screen flex items-center justify-center">Loading your quizzes...</div>;
@@ -29,6 +32,7 @@ export default function StudentDashboard() {
           <QuizCard key={quiz.id} quiz={quiz} />
         ))}
       </div>
+      {!quizzes.length && <p className="text-muted-foreground">No quizzes are available yet.</p>}
     </div>
   );
 }

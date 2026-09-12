@@ -21,6 +21,7 @@ import QuizPlaceholder from './pages/QuizPlaceholder';
 import QuizInstructions from './pages/QuizInstructions';
 import QuizSolve from './pages/QuizSolve';
 import QuizResult from './pages/QuizResult';
+import AdminQuizInvites from './pages/AdminQuizInvites'
 
 
 function App() {
@@ -59,14 +60,15 @@ function App() {
           <Route path='/verify-account' element={<VerifyAccountPage />} />
         </Route>
         <Route element={<Proxy />}>
-         <Route path='/admin-panel' element={<AdminQuizzes />} />
-        <Route path='/admin-panel/quizzes/:quizId/questions' element={<AdminQuizQuestions />} />
-        <Route path='/dashboard' element={<StudentDashboard />} />
-        <Route path="/quiz/invite/:token" element={<InviteEntry />} />
-        <Route path="/quiz/:id" element={<QuizPlaceholder />} />
-        <Route path="/quiz/:id/instructions" element={<QuizInstructions />} />
-        <Route path="/quiz/:id/solve" element={<QuizSolve />} />
-        <Route path="/quiz/:id/result" element={<QuizResult />} />
+          <Route path='/admin-panel' element={<AdminQuizzes />} />
+          <Route path='/admin-panel/quizzes/:quizId/invites' element={<AdminQuizInvites />} />
+          <Route path='/admin-panel/quizzes/:quizId/questions' element={<AdminQuizQuestions />} />
+          <Route path='/dashboard' element={<StudentDashboard />} />
+          <Route path="/quiz/invite/:token" element={<InviteEntry />} />
+          <Route path="/quiz/:id" element={<QuizPlaceholder />} />
+          <Route path="/quiz/:id/instructions" element={<QuizInstructions />} />
+          <Route path="/quiz/:id/solve" element={<QuizSolve />} />
+          <Route path="/quiz/:id/result" element={<QuizResult />} />
         </Route>
       </Routes>
     </>

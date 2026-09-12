@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router";
+import { api } from "@/lib/api";
 
 export default function InviteEntry() {
   const { token } = useParams();
@@ -8,20 +9,24 @@ export default function InviteEntry() {
   const [errorType, setErrorType] = useState(null);
 
   useEffect(() => {
-    fetch(`http://localhost:3000/student/invite/${token}`, { credentials: "include" })
-      .then((res) => res.json())
+    let active = true;
+    api.get(`/student/invite/${token}`)
       .then((data) => {
-        if (data.error) {
+        if (!active) return;
+        if (data?.error) {
           setErrorType(data.error);
           setStatus("error");
         } else {
-          navigate(`/quiz/${data.id}`);
+          navigate(`/quiz/${data?.id}/instructions`);
         }
       })
-      .catch(() => {
-        setErrorType("invalid_link");
-        setStatus("error");
+      .catch((err) => {
+        if (active) {
+          setErrorType(err.status === 401 ? "unauthorized" : "invalid_link");
+          setStatus("error");
+        }
       });
+    return () => { active = false; };
   }, [token, navigate]);
 
   if (status === "loading") {
@@ -33,6 +38,7 @@ export default function InviteEntry() {
     not_open_yet: "This quiz isn't open yet. Check back closer to the start time.",
     closed: "This quiz has closed and is no longer accepting responses.",
     already_submitted: "You've already submitted this quiz. Only one attempt is allowed.",
+    unauthorized: "Please sign in before opening this invite link.",
   };
 
   return (

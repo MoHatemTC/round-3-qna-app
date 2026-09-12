@@ -29,7 +29,7 @@ export function Proxy() {
         }
     }, [])
 
-    if (loading) return null
+    if (loading) return <div className="min-h-screen flex items-center justify-center">Checking your session...</div>
     if (!session) return <Navigate to="/login" replace />
 
     const role = session.role
@@ -72,7 +72,7 @@ export function PublicRoute() {
         return () => { active = false }
     }, [])
 
-    if (loading) return null
+    if (loading) return <div className="min-h-screen flex items-center justify-center">Checking your session...</div>
 
     if (session) {
         const targetPath = session.role === "admin" ? "/admin-panel" : "/dashboard"

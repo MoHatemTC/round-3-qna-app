@@ -19,6 +19,7 @@ import { QuizService } from "./quiz.service.js";
 import { CreateQuizDto } from "./dto/create-quiz.dto.js";
 import { UpdateQuizDto } from "./dto/update-quiz.dto.js";
 import { QuizDto } from "./dto/quiz.dto.js";
+import { CreateInvitationDto } from "./dto/create-invitation.dto.js";
 
 // Auth/role protection is wired in AppModule.configure() via the RequireAuth
 // and RequireRole("admin") middleware, applied to every route on this controller.
@@ -82,5 +83,10 @@ export class QuizController {
   @ApiResponse({ status: 404, description: "Quiz not found" })
   remove(@Param("id") id: string) {
     return this.quizService.remove(id);
+  }
+
+  @Post(":id/invitations")
+  invite(@Param("id") id: string, @Body() dto: CreateInvitationDto) {
+    return this.quizService.invite(id, dto);
   }
 }

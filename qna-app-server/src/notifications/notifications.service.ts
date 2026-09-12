@@ -15,9 +15,8 @@ export class NotificationService {
   async send(
     type: "verify-email" | "quiz-invitation",
     recipient: string,
-    token: string,
-    quizTitle: string,
-    link: string,
+    payload: string,
+    link = "",
     relatedId?: string
   ) {
     let subject = "";
@@ -26,7 +25,7 @@ export class NotificationService {
 
     switch (type) {
       case "verify-email": {
-        const verifyData = VerifyEmailTemplate(token);
+        const verifyData = VerifyEmailTemplate(payload);
         subject = verifyData.subject;
         body = verifyData.body;
         emailType = EmailType.verification;
@@ -34,7 +33,7 @@ export class NotificationService {
       }
 
       case "quiz-invitation": {
-        const quizData = QuizInvitationTemplate(quizTitle, link);
+        const quizData = QuizInvitationTemplate(payload, link);
         subject = quizData.subject;
         body = quizData.body;
         emailType = EmailType.invitation;

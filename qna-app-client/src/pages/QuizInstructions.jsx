@@ -1,34 +1,43 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Clock, FileQuestion, RotateCcw, AlertTriangle, CheckCircle2 } from "lucide-react";
+import { api } from "@/lib/api";
 
 export default function QuizInstructions() {
   const { id } = useParams();
   const navigate = useNavigate();
   const [starting, setStarting] = useState(false);
+  const [error, setError] = useState("");
+  const [quiz, setQuiz] = useState(null);
 
- const handleStart = async () => {
-  setStarting(true);
-  // TEMP MOCK — replace with real POST /attempts/start once Learner 4 publishes it
-  const mockAttempt = {
-    attemptId: "mock-attempt-1",
-    questions: [
-      { id: "q1", text: "What is 2 + 2?", options: ["3", "4", "5", "6"] },
-      { id: "q2", text: "What is the capital of Egypt?", options: ["Alexandria", "Cairo", "Giza", "Luxor"] },
-      { id: "q3", text: "React is a...", options: ["Database", "Library", "Language", "OS"] },
-    ],
+  useEffect(() => {
+    api.get(`/student/quizzes/${id}`).then(setQuiz).catch((err) => setError(err.message));
+  }, [id]);
+
+  const handleStart = async () => {
+    if (starting) return;
+    setStarting(true);
+    setError("");
+
+    try {
+      const attempt = await api.post("/attempts/start", { quiz_id: id });
+      // Keep the server attempt id; the server is the source of truth for timing and status.
+      navigate(`/quiz/${id}/solve`, {
+        state: { attemptId: attempt?.id, endTime: attempt?.end_time, questions: attempt?.questions ?? [] },
+      });
+    } catch (err) {
+      setError(err.message || "Unable to start this quiz. Please try again.");
+    } finally {
+      setStarting(false);
+    }
   };
-  setTimeout(() => {
-    navigate(`/quiz/${id}/solve`, { state: mockAttempt });
-  }, 400);
-};
 
   const rules = [
-    { icon: Clock, label: "Duration", value: "30 minutes" },
-    { icon: FileQuestion, label: "Questions", value: "10 questions" },
-    { icon: RotateCcw, label: "Attempts allowed", value: "1 attempt" },
+    { icon: Clock, label: "Duration", value: `${quiz?.duration ?? "-"} minutes` },
+    { icon: FileQuestion, label: "Questions", value: `${quiz?.question_count ?? "-"} questions` },
+    { icon: RotateCcw, label: "Attempts allowed", value: `${quiz?.attempts_allowed ?? 1} attempt` },
   ];
 
   return (
@@ -65,7 +74,13 @@ export default function QuizInstructions() {
             </div>
           </div>
 
-          <Button onClick={handleStart} disabled={starting} className="w-full" size="lg">
+          {error && (
+            <p role="alert" className="rounded-md border border-destructive/20 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+              {error}
+            </p>
+          )}
+
+          <Button onClick={handleStart} disabled={starting || !quiz} className="w-full" size="lg">
             {starting ? "Starting..." : "Start Quiz"}
           </Button>
         </CardContent>
