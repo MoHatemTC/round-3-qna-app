@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Clock, FileQuestion, RotateCcw, AlertTriangle, CheckCircle2 } from "lucide-react";
 import { api } from "@/lib/api";
+import { startAttempt } from "@/services/services";
 
 export default function QuizInstructions() {
   const { id } = useParams();
@@ -22,7 +23,7 @@ export default function QuizInstructions() {
     setError("");
 
     try {
-      const attempt = await api.post("/attempts/start", { quiz_id: id });
+      const attempt = await startAttempt(id);
       // Keep the server attempt id; the server is the source of truth for timing and status.
       navigate(`/quiz/${id}/solve`, {
         state: { attemptId: attempt?.id, endTime: attempt?.end_time, questions: attempt?.questions ?? [] },
