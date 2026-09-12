@@ -251,6 +251,16 @@ export class AttemptService {
     const attempt = await this.findOwnedAttempt(id, userId);
     const answers = await this.prisma.attemptAnswer.findMany({
       where: { attempt_id: id },
+      include: {
+        question: {
+          select: {
+            id: true,
+            text: true,
+            type: true,
+            options: { select: { id: true, text: true, is_correct: true } }
+          }
+        }
+      },
       orderBy: { created_at: "asc" }
     });
     const questions = await this.prisma.question.findMany({
@@ -280,5 +290,23 @@ export class AttemptService {
       ),
       answers
     };
+  }
+
+  getAdminAttempts() {
+    return this.prisma.attempt.findMany({
+      orderBy: { created_at: "desc" },
+      select: {
+        id: true,
+        quiz_id: true,
+        user_id: true,
+        started_at: true,
+        submitted_at: true,
+        status: true,
+        score: true,
+        percentage: true,
+        user: { select: { name: true, email: true } },
+        quiz: { select: { title: true } }
+      }
+    });
   }
 }

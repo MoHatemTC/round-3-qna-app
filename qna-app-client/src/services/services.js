@@ -27,3 +27,19 @@ export function deleteQuiz(id) {
 export function logout() {
   return api.post("/auth/logout", {})
 }
+
+export function startAttempt(quizId) {
+  return api.post("/attempts/start", { quiz_id: quizId })
+}
+
+export function submitAttempt(attemptId, answersPayload) {
+  return api.post(`/attempts/${attemptId}/submit`, { answers: answersPayload })
+}
+
+export function getAttemptResult(attemptId) {
+  return api.get(`/attempts/${attemptId}/result`)
+}
+
+export function getAdminAttempts() {
+  return api.get("/attempts/admin/attempts")
+}

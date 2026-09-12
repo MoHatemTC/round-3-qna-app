@@ -52,6 +52,7 @@ export class AppModule implements NestModule {
       .apply(RequireRole("admin"))
       .forRoutes(
         { path: "auth/admin-panel", method: RequestMethod.GET },
+        { path: "attempts/admin/attempts", method: RequestMethod.GET },
         QuizController,
         QuestionController
       );

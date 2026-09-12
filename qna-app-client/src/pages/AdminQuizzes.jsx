@@ -182,6 +182,7 @@ export default function AdminQuizzes() {
           >
             <Plus /> New quiz
           </Button>
+          <Link to="/admin-panel/attempts" className={buttonVariants({ variant: "outline" })}><ListChecks /> Attempts</Link>
           <Button variant="outline" onClick={handleSignOut}>
             <LogOut /> Sign out
           </Button>

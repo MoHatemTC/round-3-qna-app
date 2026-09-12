@@ -51,6 +51,14 @@ export class AttemptController {
     return this.attemptService.start(dto, req.user!.id);
   }
 
+  @Get("/admin/attempts")
+  @ApiOperation({ summary: "List all quiz attempts (admin only)" })
+  @ApiResponse({ status: 200, description: "Attempt list" })
+  @ApiResponse({ status: 403, description: "Logged in, but not an admin" })
+  getAdminAttempts() {
+    return this.attemptService.getAdminAttempts();
+  }
+
   @Post("/:id/submit")
   @ApiOperation({ summary: "Submit answers for an in-progress attempt" })
   @ApiResponse({

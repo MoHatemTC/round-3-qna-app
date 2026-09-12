@@ -22,6 +22,7 @@ import QuizInstructions from './pages/QuizInstructions';
 import QuizSolve from './pages/QuizSolve';
 import QuizResult from './pages/QuizResult';
 import AdminQuizInvites from './pages/AdminQuizInvites'
+import AdminAttempts from './pages/AdminAttempts'
 
 
 function App() {
@@ -61,6 +62,7 @@ function App() {
         </Route>
         <Route element={<Proxy />}>
           <Route path='/admin-panel' element={<AdminQuizzes />} />
+          <Route path='/admin-panel/attempts' element={<AdminAttempts />} />
           <Route path='/admin-panel/quizzes/:quizId/invites' element={<AdminQuizInvites />} />
           <Route path='/admin-panel/quizzes/:quizId/questions' element={<AdminQuizQuestions />} />
           <Route path='/dashboard' element={<StudentDashboard />} />
