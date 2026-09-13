@@ -44,6 +44,12 @@ enum QuestionType {
   true_false
 }
 
+enum InvitationStatus {
+  sent
+  failed
+  accepted
+}
+
 model User {
   id                   String           @id @default(uuid())
   name                 String
@@ -110,7 +116,7 @@ model AttemptAnswer {
 }
 
 model EmailDeliveryLog {
-  id            String      @id @default(uuid())  
+  id            String      @id @default(uuid())
   type          EmailType
   recipient     String
   related_id    String?
@@ -147,16 +153,19 @@ model QuestionOption {
 }
 
 model QuizInvitation {
-  id          String    @id @default(uuid())
+  id          String           @id @default(uuid())
   quiz_id     String
-  user_id     String
-  token_hash  String    @unique
+  email       String
+  user_id     String?
+  token_hash  String           @unique
+  status      InvitationStatus @default(sent)
+  sent_at     DateTime?        @default(now())
   expires_at  DateTime?
   accepted_at DateTime?
-  created_at  DateTime  @default(now())
-  quiz        Quiz      @relation(fields: [quiz_id], references: [id], onDelete: Cascade)
-  user        User      @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  created_at  DateTime         @default(now())
+  quiz        Quiz             @relation(fields: [quiz_id], references: [id], onDelete: Cascade)
+  user        User?            @relation(fields: [user_id], references: [id], onDelete: Cascade)
 
-  @@unique([quiz_id, user_id])
+  @@unique([quiz_id, email])
   @@map("quiz_invitations")
 }

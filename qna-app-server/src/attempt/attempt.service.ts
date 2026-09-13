@@ -52,8 +52,16 @@ export class AttemptService {
     if (now > quiz.ends_at)
       throw new BadRequestException("Quiz has already ended");
 
-    const invitation = await this.prisma.quizInvitation.findUnique({
-      where: { quiz_id_user_id: { quiz_id: quiz.id, user_id: userId } }
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) {
+      throw new ForbiddenException("You are not invited to this quiz");
+    }
+
+    const invitation = await this.prisma.quizInvitation.findFirst({
+      where: {
+        quiz_id: quiz.id,
+        OR: [{ user_id: userId }, { email: user.email }]
+      }
     });
     if (!invitation)
       throw new ForbiddenException("You are not invited to this quiz");
