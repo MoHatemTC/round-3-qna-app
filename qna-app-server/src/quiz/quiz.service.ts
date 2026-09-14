@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   Injectable,
   NotFoundException
@@ -9,6 +10,7 @@ import { CreateQuizDto } from "./dto/create-quiz.dto.js";
 import { UpdateQuizDto } from "./dto/update-quiz.dto.js";
 import { CreateInvitationDto } from "./dto/create-invitation.dto.js";
 import { NotificationService } from "../notifications/notifications.service.js";
+import { QuizStatus } from "../generated/prisma/enums.js";
 
 @Injectable()
 export class QuizService {
@@ -65,15 +67,18 @@ export class QuizService {
   async invite(id: string, dto: CreateInvitationDto) {
     // get quiz data by quiz id
     const quiz = await this.findOne(id);
+    if (quiz.status !== QuizStatus.published) {
+      throw new BadRequestException("Only published quizzes can receive invitations");
+    }
     // store users email in an array
     const usersEmail: string[] = dto.emails ?? [],
       // store users email in an array
-      usersId: string[] = dto.usersId ?? [];
+      userIds: string[] = dto.userIds ?? [];
     // check if there users in db
-    if (usersId.length) {
+    if (userIds.length) {
       // get all users
       const users = await this.prisma.user.findMany({
-        where: { id: { in: usersId } },
+        where: { id: { in: userIds } },
         select: { id: true, email: true }
       });
       // loop over users data and check if user account exist or not
@@ -103,6 +108,7 @@ export class QuizService {
         continue;
       }
       // if email passed validation test go to try-catch
+      let invitationId: string | undefined;
       try {
         // get user by mail
         const user = await this.prisma.user.findUnique({
@@ -112,35 +118,58 @@ export class QuizService {
         const existing = await this.prisma.quizInvitation.findUnique({
           where: { quiz_id_email: { quiz_id: id, email } }
         });
-        // if user has the token just skip
-        if (existing) {
+        if (existing && existing.status !== "failed") {
           skippedCount++;
           continue;
         }
         // else create the inviatation token
         const token = randomBytes(32).toString("hex");
         const tokenHash = createHash("sha256").update(token).digest("hex");
-        const invitation = await this.prisma.quizInvitation.create({
-          data: {
-            quiz_id: id,
-            email: email,
-            user_id: user?.id ?? null,
-            token_hash: tokenHash,
-            status: "sent",
-            sent_at: new Date()
-          }
-        });
+        const invitation = existing
+          ? await this.prisma.quizInvitation.update({
+              where: { id: existing.id },
+              data: {
+                user_id: user?.id ?? null,
+                token_hash: tokenHash,
+                status: "sent",
+                sent_at: new Date(),
+                accepted_at: null,
+                expires_at: quiz.ends_at
+              }
+            })
+          : await this.prisma.quizInvitation.create({
+              data: {
+                quiz_id: id,
+                email,
+                user_id: user?.id ?? null,
+                token_hash: tokenHash,
+                status: "sent",
+                sent_at: new Date(),
+                expires_at: quiz.ends_at
+              }
+            });
+        invitationId = invitation.id;
         const link = `${process.env.CLIENT_URL ?? "http://localhost:5173"}/quiz/invite/${token}`;
         await this.notifications.send(
           "quiz-invitation",
           email,
-          quiz.title,
+          {
+            title: quiz.title,
+            durationMinutes: quiz.duration_minutes,
+            deadline: quiz.ends_at
+          },
           link,
-          invitation.id
+          invitationId
         );
         sentCount++;
       } catch (error) {
         failedCount++;
+        if (invitationId) {
+          await this.prisma.quizInvitation.update({
+            where: { id: invitationId },
+            data: { status: "failed" }
+          });
+        }
       }
     }
 

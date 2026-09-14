@@ -1,5 +1,5 @@
 import { Injectable, NotFoundException } from "@nestjs/common";
-import { createHash, randomBytes } from "node:crypto";
+import { createHash } from "node:crypto";
 import { PrismaService } from "../prisma.service.js";
 import { AttemptStatus, QuizStatus } from "../generated/prisma/enums.js";
 
@@ -8,8 +8,14 @@ export class StudentService {
   constructor(private readonly prisma: PrismaService) {}
 
   async getQuizzes(userId: string) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new NotFoundException("Quiz not found");
+
     const invitations = await this.prisma.quizInvitation.findMany({
-      where: { user_id: userId },
+      where: {
+        status: { in: ["sent", "accepted"] },
+        OR: [{ user_id: userId }, { email: user.email }]
+      },
       include: {
         quiz: {
           select: {
@@ -48,14 +54,21 @@ export class StudentService {
   }
 
   async resolveInvite(token: string, userId: string) {
-    const invitation = await this.prisma.quizInvitation.findUnique({
-      where: { token_hash: createHash("sha256").update(token).digest("hex") },
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) return { error: "invalid_link" };
+
+    const invitation = await this.prisma.quizInvitation.findFirst({
+      where: {
+        token_hash: createHash("sha256").update(token).digest("hex"),
+        status: { in: ["sent", "accepted"] },
+        OR: [{ user_id: userId }, { email: user.email }]
+      },
       include: { quiz: true }
     });
-    if (!invitation || invitation.user_id !== userId)
+    if (!invitation)
       return { error: "invalid_link" };
     if (invitation.expires_at && invitation.expires_at < new Date())
-      return { error: "invalid_link" };
+      return { error: "expired_link" };
     if (invitation.quiz.status !== QuizStatus.published)
       return { error: "closed" };
     if (new Date() < invitation.quiz.starts_at)
@@ -78,7 +91,10 @@ export class StudentService {
 
     await this.prisma.quizInvitation.update({
       where: { id: invitation.id },
-      data: { accepted_at: invitation.accepted_at ?? new Date() }
+      data: {
+        status: "accepted",
+        accepted_at: invitation.accepted_at ?? new Date()
+      }
     });
     return { id: invitation.quiz.id, title: invitation.quiz.title };
   }
@@ -89,6 +105,7 @@ export class StudentService {
     const invitation = await this.prisma.quizInvitation.findFirst({
       where: {
         quiz_id: id,
+        status: { in: ["sent", "accepted"] },
         OR: [{ user_id: userId }, { email: user.email }]
       },
       include: { quiz: { include: { questions: { select: { id: true } } } } }

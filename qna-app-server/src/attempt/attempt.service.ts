@@ -60,6 +60,7 @@ export class AttemptService {
     const invitation = await this.prisma.quizInvitation.findFirst({
       where: {
         quiz_id: quiz.id,
+        status: { in: ["sent", "accepted"] },
         OR: [{ user_id: userId }, { email: user.email }]
       }
     });

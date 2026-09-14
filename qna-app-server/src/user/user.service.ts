@@ -28,8 +28,14 @@ export class UserService {
     return await bcrypt.hash(plainText, saltRound);
   }
 
-  private async encryptToken(plainToken: string, saltRound: number) {
+  private encryptToken(plainToken: string, saltRound: number) {
     return createHash("sha256").update(plainToken).digest("hex");
+  }
+  private linkPendingInvitations(email: string, userId: string) {
+    return this.prismaService.quizInvitation.updateMany({
+      where: { email, user_id: null },
+      data: { user_id: userId }
+    });
   }
 
   async register({ name, email, password }: CreateUserDTO) {
@@ -57,6 +63,8 @@ export class UserService {
         verification_sent_at: new Date()
       }
     });
+
+    await this.linkPendingInvitations(email, newUser.id);
 
     await this.notificationService.send(
       "verify-email",
@@ -113,6 +121,8 @@ export class UserService {
       });
     }
 
+    await this.linkPendingInvitations(user.email, user.id);
+
     const token = await this.jwtService.signAsync({
       id: user.id,
       role: user.role
@@ -131,6 +141,7 @@ export class UserService {
     });
 
     if (!user) throw new BadRequestException("Invalid verification token");
+    await this.linkPendingInvitations(user.email, user.id);
     if (user.email_verified_at)
       return {
         status: "already_verified",

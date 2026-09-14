@@ -22,7 +22,7 @@ export default function AdminQuizInvites() {
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({ email })
+                body: JSON.stringify({ emails: [email], userIds: [] })
             });
 
             const data = await response.json();
@@ -31,7 +31,7 @@ export default function AdminQuizInvites() {
                 throw new Error(data.message || 'Failed to send invitation');
             }
 
-            setMessage('Invitation sent successfully to ' + email);
+            setMessage(`Invitation processed successfully! Sent: ${data.sent}, Failed: ${data.failed}, Skipped: ${data.skipped}`);
             setEmail('');
         } catch (err) {
             setError(err.message || 'Something went wrong');

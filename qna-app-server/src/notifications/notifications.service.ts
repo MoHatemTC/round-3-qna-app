@@ -4,6 +4,7 @@ import { VerifyEmailTemplate } from "./templates/verifiy-email-template.js";
 import { MailerAdapter } from "./adapters/mailer.adapter.js";
 import { PrismaService } from "../prisma.service.js";
 import { EmailType, EmailStatus } from "../../src/generated/prisma/client.js";
+import { QuizInvitationPayload } from "./templates/quiz-invitation-template.js";
 
 @Injectable()
 export class NotificationService {
@@ -15,7 +16,7 @@ export class NotificationService {
   async send(
     type: "verify-email" | "quiz-invitation",
     recipient: string,
-    payload: string,
+    payload: string | QuizInvitationPayload,
     link = "",
     relatedId?: string
   ) {
@@ -25,6 +26,11 @@ export class NotificationService {
 
     switch (type) {
       case "verify-email": {
+        if (typeof payload !== "string") {
+          throw new BadRequestException(
+            "Verification email payload must be a string"
+          );
+        }
         const verifyData = VerifyEmailTemplate(payload);
         subject = verifyData.subject;
         body = verifyData.body;

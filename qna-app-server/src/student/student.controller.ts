@@ -1,6 +1,7 @@
-import { Controller, Get, Param, Req } from "@nestjs/common";
+import { Controller, Get, Param, Req, UseGuards } from "@nestjs/common";
 import type { Request } from "express";
 import { StudentService } from "./student.service.js";
+import { EmailVerifiedGuard } from "../user/guards/email-verified.guard.js";
 
 @Controller("student")
 export class StudentController {
@@ -12,6 +13,7 @@ export class StudentController {
   }
 
   @Get("quizzes/:id")
+  @UseGuards(EmailVerifiedGuard)
   getQuiz(@Param("id") id: string, @Req() req: Request) {
     return this.studentService.getQuiz(id, req.user!.id);
   }
