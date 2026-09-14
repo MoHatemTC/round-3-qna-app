@@ -38,7 +38,8 @@ export class UserService {
     });
   }
 
-  async register({ name, email, password }: CreateUserDTO) {
+  async register({ name, email: emailTrim, password }: CreateUserDTO) {
+    const email = emailTrim.trim().toLowerCase();
     const user = await this.prismaService.user.findUnique({
       where: { email }
     });
@@ -49,7 +50,7 @@ export class UserService {
 
     const hashedPassword = await this.encryptPassword(password, 10);
 
-    const hashedToken = await this.encryptToken(token, 10);
+    const hashedToken = this.encryptToken(token, 10);
 
     const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
 
@@ -64,7 +65,7 @@ export class UserService {
       }
     });
 
-    await this.linkPendingInvitations(email, newUser.id);
+    // await this.linkPendingInvitations(email, newUser.id);
 
     await this.notificationService.send(
       "verify-email",
@@ -79,7 +80,8 @@ export class UserService {
     };
   }
 
-  async login({ email, password }: LoginUserDTO) {
+  async login({ email: trimEmail, password }: LoginUserDTO) {
+    const email = trimEmail.trim().toLowerCase();
     const user = await this.prismaService.user.findUnique({
       where: { email }
     });
@@ -135,13 +137,12 @@ export class UserService {
 
   async verifyEmailToken(token: string) {
     if (!token) throw new BadRequestException("Verification token is required");
-    const tokenHash = await this.encryptToken(token, 0);
+    const tokenHash = this.encryptToken(token, 0);
     const user = await this.prismaService.user.findFirst({
       where: { verification_token: tokenHash }
     });
 
     if (!user) throw new BadRequestException("Invalid verification token");
-    await this.linkPendingInvitations(user.email, user.id);
     if (user.email_verified_at)
       return {
         status: "already_verified",
@@ -163,10 +164,13 @@ export class UserService {
       }
     });
 
+    await this.linkPendingInvitations(user.email, user.id);
+
     return { status: "verified", message: "Email verified successfully!" };
   }
 
-  async resendVerificationEmail(email: string) {
+  async resendVerificationEmail(trimEmail: string) {
+    const email = trimEmail.trim().toLowerCase();
     const user = await this.prismaService.user.findUnique({
       where: { email }
     });
@@ -188,7 +192,7 @@ export class UserService {
       );
     }
     const token = randomInt(100_000, 1_000_000).toString();
-    const hashedToken = await this.encryptToken(token, 10);
+    const hashedToken = this.encryptToken(token, 10);
     const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
 
     await this.prismaService.user.update({

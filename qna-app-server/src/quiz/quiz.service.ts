@@ -65,56 +65,44 @@ export class QuizService {
   }
 
   async invite(id: string, dto: CreateInvitationDto) {
-    // get quiz data by quiz id
     const quiz = await this.findOne(id);
     if (quiz.status !== QuizStatus.published) {
-      throw new BadRequestException("Only published quizzes can receive invitations");
+      throw new BadRequestException(
+        "Only published quizzes can receive invitations"
+      );
     }
-    // store users email in an array
     const usersEmail: string[] = dto.emails ?? [],
-      // store users email in an array
       userIds: string[] = dto.userIds ?? [];
-    // check if there users in db
     if (userIds.length) {
-      // get all users
       const users = await this.prisma.user.findMany({
         where: { id: { in: userIds } },
         select: { id: true, email: true }
       });
-      // loop over users data and check if user account exist or not
       for (const user of users) {
         if (user?.email) {
           usersEmail.push(user.email);
         }
       }
     }
-    // clear duplicates
     const uniqueUsersEmail = [
       ...new Set(
         usersEmail.map((userEmail) => userEmail.trim().toLocaleLowerCase())
       )
     ];
-    // counter for quiz invitation status
     let sentCount = 0,
       failedCount = 0,
       skippedCount = 0;
-    // user email validation
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    // iterate over unique users email
     for (const email of uniqueUsersEmail) {
-      // if a mail failed at validation test, failedCount will increase by +1
       if (!emailRegex.test(email)) {
         failedCount++;
         continue;
       }
-      // if email passed validation test go to try-catch
       let invitationId: string | undefined;
       try {
-        // get user by mail
         const user = await this.prisma.user.findUnique({
           where: { email }
         });
-        // check if user has invitation token or otp
         const existing = await this.prisma.quizInvitation.findUnique({
           where: { quiz_id_email: { quiz_id: id, email } }
         });
@@ -122,7 +110,6 @@ export class QuizService {
           skippedCount++;
           continue;
         }
-        // else create the inviatation token
         const token = randomBytes(32).toString("hex");
         const tokenHash = createHash("sha256").update(token).digest("hex");
         const invitation = existing
@@ -183,7 +170,7 @@ export class QuizService {
   async getQuizInvitations(quizId: string) {
     const quizInvitation = await this.findOne(quizId);
     if (!quizInvitation) {
-      throw new NotFoundException("Quiz invitation not found!")
+      throw new NotFoundException("Quiz invitation not found!");
     }
     return this.prisma.quizInvitation.findMany({
       where: { quiz_id: quizId },
