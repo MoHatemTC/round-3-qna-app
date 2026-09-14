@@ -10,7 +10,7 @@ import * as bcrypt from "bcryptjs";
 import { CreateUserDTO } from "./dto/create-user-dto.js";
 import { LoginUserDTO } from "./dto/login-user-dto.js";
 import { JwtService } from "@nestjs/jwt";
-import { createHash, randomBytes, randomInt } from "node:crypto";
+import { createHash, randomInt } from "node:crypto";
 import { NotificationService } from "../notifications/notifications.service.js";
 
 const DUMMY_HASH =
@@ -31,6 +31,7 @@ export class UserService {
   private encryptToken(plainToken: string, saltRound: number) {
     return createHash("sha256").update(plainToken).digest("hex");
   }
+
   private linkPendingInvitations(email: string, userId: string) {
     return this.prismaService.quizInvitation.updateMany({
       where: { email, user_id: null },
@@ -64,8 +65,6 @@ export class UserService {
         verification_sent_at: new Date()
       }
     });
-
-    // await this.linkPendingInvitations(email, newUser.id);
 
     await this.notificationService.send(
       "verify-email",
@@ -143,6 +142,7 @@ export class UserService {
     });
 
     if (!user) throw new BadRequestException("Invalid verification token");
+    await this.linkPendingInvitations(user.email, user.id);
     if (user.email_verified_at)
       return {
         status: "already_verified",
