@@ -3,6 +3,8 @@ import {
   Controller,
   Delete,
   Get,
+  HttpCode,
+  HttpStatus,
   Param,
   Post,
   Put,
@@ -95,6 +97,7 @@ export class QuizController {
   @ApiResponse({ status: 401, description: "Not logged in" })
   @ApiResponse({ status: 403, description: "Logged in, but not an admin" })
   @ApiResponse({ status: 404, description: "Quiz not found" })
+  @HttpCode(HttpStatus.OK)
   invite(@Param("id") id: string, @Body() dto: CreateInvitationDto) {
     return this.quizService.invite(id, dto);
   }
