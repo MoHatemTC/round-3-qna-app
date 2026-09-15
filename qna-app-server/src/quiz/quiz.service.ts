@@ -1,6 +1,5 @@
 import {
   BadRequestException,
-  ConflictException,
   Injectable,
   NotFoundException
 } from "@nestjs/common";
@@ -10,7 +9,7 @@ import { CreateQuizDto } from "./dto/create-quiz.dto.js";
 import { UpdateQuizDto } from "./dto/update-quiz.dto.js";
 import { CreateInvitationDto } from "./dto/create-invitation.dto.js";
 import { NotificationService } from "../notifications/notifications.service.js";
-import { QuizStatus } from "../generated/prisma/enums.js";
+import { AttemptStatus, QuizStatus } from "../generated/prisma/enums.js";
 
 // Counts the admin CMS needs to show a quiz's activation status.
 const quizCounts = {
@@ -243,5 +242,96 @@ export class QuizService {
       },
       orderBy: { created_at: "desc" }
     });
+  }
+
+  async getQuizAnalytics(quizId: string) {
+    await this.findOne(quizId);
+
+    const [invitedCount, startedCount, submittedCount, submittedAverage] =
+      await Promise.all([
+        this.prisma.quizInvitation.count({ where: { quiz_id: quizId } }),
+        this.prisma.attempt.count({ where: { quiz_id: quizId } }),
+        this.prisma.attempt.count({
+          where: {
+            quiz_id: quizId,
+            status: {
+              in: [AttemptStatus.submitted, AttemptStatus.auto_submitted]
+            }
+          }
+        }),
+        this.prisma.attempt.aggregate({
+          where: {
+            quiz_id: quizId,
+            status: {
+              in: [AttemptStatus.submitted, AttemptStatus.auto_submitted]
+            }
+          },
+          _avg: { percentage: true }
+        })
+      ]);
+
+    return {
+      quiz_id: quizId,
+      invited_count: invitedCount,
+      started_count: startedCount,
+      submitted_count: submittedCount,
+      completion_rate:
+        invitedCount === 0 ? 0 : (submittedCount / invitedCount) * 100,
+      average_score: submittedAverage._avg.percentage ?? 0
+    };
+  }
+
+  async getQuizStudents(quizId: string, status?: AttemptStatus) {
+    await this.findOne(quizId);
+
+    const [invitations, attempts] = await Promise.all([
+      this.prisma.quizInvitation.findMany({
+        where: { quiz_id: quizId },
+        select: {
+          email: true,
+          user: { select: { id: true, name: true, email: true } }
+        },
+        orderBy: { created_at: "desc" }
+      }),
+      this.prisma.attempt.findMany({
+        where: {
+          quiz_id: quizId,
+          ...(status ? { status } : {})
+        },
+        select: {
+          user_id: true,
+          status: true,
+          score: true,
+          percentage: true,
+          created_at: true,
+          user: { select: { name: true, email: true } }
+        },
+        orderBy: { created_at: "desc" }
+      })
+    ]);
+
+    const attemptsByUserId = new Map(
+      attempts.map((attempt) => [attempt.user_id, attempt])
+    );
+    const attemptsByEmail = new Map(
+      attempts.map((attempt) => [attempt.user.email, attempt])
+    );
+
+    return invitations
+      .map((invitation) => {
+        const attempt =
+          (invitation.user && attemptsByUserId.get(invitation.user.id)) ??
+          attemptsByEmail.get(invitation.user?.email ?? invitation.email);
+        const attemptStatus = attempt?.status ?? "not_started";
+
+        return {
+          name: invitation.user?.name ?? null,
+          email: invitation.user?.email ?? invitation.email,
+          score: attempt?.score ?? null,
+          percentage: attempt?.percentage ?? null,
+          status: attemptStatus
+        };
+      })
+      .filter((student) => !status || student.status === status);
   }
 }

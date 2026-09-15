@@ -8,7 +8,9 @@ import {
   Param,
   Post,
   Put,
-  Req
+  Query,
+  Req,
+  ParseEnumPipe
 } from "@nestjs/common";
 import {
   ApiCookieAuth,
@@ -22,6 +24,7 @@ import { CreateQuizDto } from "./dto/create-quiz.dto.js";
 import { UpdateQuizDto } from "./dto/update-quiz.dto.js";
 import { QuizDto } from "./dto/quiz.dto.js";
 import { CreateInvitationDto } from "./dto/create-invitation.dto.js";
+import { AttemptStatus } from "../generated/prisma/enums.js";
 
 // Auth/role protection is wired in AppModule.configure() via the RequireAuth
 // and RequireRole("admin") middleware, applied to every route on this controller.
@@ -110,5 +113,31 @@ export class QuizController {
   @ApiResponse({ status: 404, description: "Quiz not found" })
   getQuizInvitations(@Param("id") id: string) {
     return this.quizService.getQuizInvitations(id);
+  }
+
+  @Get("analytics/:id")
+  @ApiOperation({ summary: "Get quiz analytics (admin only)" })
+  @ApiResponse({ status: 200, description: "Quiz analytics" })
+  @ApiResponse({ status: 401, description: "Not logged in" })
+  @ApiResponse({ status: 403, description: "Logged in, but not an admin" })
+  @ApiResponse({ status: 404, description: "Quiz not found" })
+  getQuizAnalytics(@Param("id") id: string) {
+    return this.quizService.getQuizAnalytics(id);
+  }
+
+  @Get(":id/students")
+  @ApiOperation({
+    summary: "List quiz students and attempt statuses (admin only)"
+  })
+  @ApiResponse({ status: 200, description: "Quiz student table" })
+  @ApiResponse({ status: 401, description: "Not logged in" })
+  @ApiResponse({ status: 403, description: "Logged in, but not an admin" })
+  @ApiResponse({ status: 404, description: "Quiz not found" })
+  getQuizStudents(
+    @Param("id") id: string,
+    @Query("status", new ParseEnumPipe(AttemptStatus, { optional: true }))
+    status?: AttemptStatus
+  ) {
+    return this.quizService.getQuizStudents(id, status);
   }
 }
