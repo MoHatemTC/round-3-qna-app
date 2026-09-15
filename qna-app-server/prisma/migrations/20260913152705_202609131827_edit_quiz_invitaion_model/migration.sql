@@ -1,3 +1,10 @@
+/*
+  Warnings:
+
+  - A unique constraint covering the columns `[quiz_id,email]` on the table `quiz_invitations` will be added. If there are existing duplicate values, this will fail.
+  - Added the required column `email` to the `quiz_invitations` table without a default value. This is not possible if the table is not empty.
+
+*/
 -- CreateEnum
 CREATE TYPE "InvitationStatus" AS ENUM ('sent', 'failed', 'accepted');
 

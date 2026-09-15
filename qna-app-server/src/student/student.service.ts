@@ -1,11 +1,31 @@
 import { Injectable, NotFoundException } from "@nestjs/common";
 import { createHash } from "node:crypto";
 import { PrismaService } from "../prisma.service.js";
-import { AttemptStatus, QuizStatus } from "../generated/prisma/enums.js";
+import { AttemptStatus, InvitationStatus, QuizStatus } from "../generated/prisma/enums.js";
+import { finalizeExpiredAttempts, quizAvailability } from "../attempt/attempt-timing.js";
 
 @Injectable()
 export class StudentService {
   constructor(private readonly prisma: PrismaService) {}
+
+  private async attemptStateByQuiz(userId: string, quizId?: string) {
+    await finalizeExpiredAttempts(this.prisma, { user_id: userId, quiz_id: quizId });
+    const attempts = await this.prisma.attempt.findMany({
+      where: { user_id: userId, quiz_id: quizId },
+      select: { quiz_id: true, status: true }
+    });
+
+    // A finished attempt wins over a running one, which wins over none.
+    const states = new Map<string, "submitted" | "in_progress">();
+    for (const attempt of attempts) {
+      if (attempt.status === AttemptStatus.in_progress) {
+        if (!states.has(attempt.quiz_id)) states.set(attempt.quiz_id, "in_progress");
+      } else {
+        states.set(attempt.quiz_id, "submitted");
+      }
+    }
+    return states;
+  }
 
   async getQuizzes(userId: string) {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
@@ -27,9 +47,12 @@ export class StudentService {
           }
         }
       },
-      orderBy: { created_at: "desc" }
+      orderBy: { quiz: { starts_at: "asc" } }
     });
-
+    ///
+    const states = await this.attemptStateByQuiz(userId);
+    const now = new Date();
+    ///
     const attempts = await this.prisma.attempt.findMany({
       where: { user_id: userId },
       select: { quiz_id: true, status: true }
@@ -42,7 +65,11 @@ export class StudentService {
       id: quiz.id,
       title: quiz.title,
       duration: quiz.duration_minutes,
+      starts_at: quiz.starts_at,
       deadline: quiz.ends_at,
+      /////
+      availability: quizAvailability(quiz, now),
+      ////
       state:
         attemptByQuiz.get(quiz.id) === AttemptStatus.submitted ||
         attemptByQuiz.get(quiz.id) === AttemptStatus.auto_submitted
@@ -51,6 +78,62 @@ export class StudentService {
             ? "in_progress"
             : "not_started"
     }));
+  }
+
+  // In-app notifications are derived from invitations: one per invite to a
+  // published quiz. "Read" = the student has opened it (accepted_at is set),
+  // the same flag the emailed invite link sets - so no extra table is needed.
+  async getNotifications(userId: string) {
+    const where = { user_id: userId, quiz: { status: QuizStatus.published } };
+    const [invitations, unreadCount] = await Promise.all([
+      this.prisma.quizInvitation.findMany({
+        where,
+        include: {
+          quiz: { select: { id: true, title: true, starts_at: true, ends_at: true } }
+        },
+        orderBy: { created_at: "desc" },
+        take: 20
+      }),
+      this.prisma.quizInvitation.count({ where: { ...where, accepted_at: null } })
+    ]);
+
+    const now = new Date();
+    return {
+      unread_count: unreadCount,
+      notifications: invitations.map((invitation) => ({
+        id: invitation.id,
+        type: "quiz_invitation",
+        quiz_id: invitation.quiz.id,
+        quiz_title: invitation.quiz.title,
+        starts_at: invitation.quiz.starts_at,
+        ends_at: invitation.quiz.ends_at,
+        availability: quizAvailability(invitation.quiz, now),
+        created_at: invitation.sent_at ?? invitation.created_at,
+        read: invitation.accepted_at !== null
+      }))
+    };
+  }
+
+  async markNotificationRead(id: string, userId: string) {
+    const invitation = await this.prisma.quizInvitation.findFirst({
+      where: { id, user_id: userId }
+    });
+    if (!invitation) throw new NotFoundException("Notification not found");
+    if (!invitation.accepted_at) {
+      await this.prisma.quizInvitation.update({
+        where: { id },
+        data: { accepted_at: new Date(), status: InvitationStatus.accepted }
+      });
+    }
+    return { message: "Notification marked as read" };
+  }
+
+  async markAllNotificationsRead(userId: string) {
+    const { count } = await this.prisma.quizInvitation.updateMany({
+      where: { user_id: userId, accepted_at: null, quiz: { status: QuizStatus.published } },
+      data: { accepted_at: new Date(), status: InvitationStatus.accepted }
+    });
+    return { updated: count };
   }
 
   async resolveInvite(token: string, userId: string) {
@@ -110,8 +193,14 @@ export class StudentService {
       },
       include: { quiz: { include: { questions: { select: { id: true } } } } }
     });
-    if (!invitation) throw new NotFoundException("Quiz not found");
+    if (!invitation || invitation.quiz.status !== QuizStatus.published) {
+      throw new NotFoundException("Quiz not found");
+    }
+    const states = await this.attemptStateByQuiz(userId, id);
     return {
+      availability: quizAvailability(invitation.quiz),
+      state: states.get(id) ?? "not_started",
+      server_time: new Date(),
       id: invitation.quiz.id,
       title: invitation.quiz.title,
       description: invitation.quiz.description,

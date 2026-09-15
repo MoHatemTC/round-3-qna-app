@@ -1,7 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router";
-import { ArrowLeft } from "lucide-react";
 import { getAdminAttempts } from "@/services/services";
+import { AdminCard, AdminPageHeader, adminInput } from "@/components/admin/AdminLayout";
+import { cn } from "@/lib/utils";
+
+const statusStyles = {
+  in_progress: "bg-yellow-100 text-yellow-800 dark:bg-yellow-500/15 dark:text-yellow-300",
+  submitted: "bg-green-100 text-green-700 dark:bg-green-500/15 dark:text-green-400",
+  auto_submitted: "bg-blue-100 text-blue-700 dark:bg-blue-500/15 dark:text-blue-300",
+};
 
 export default function AdminAttempts() {
   const [attempts, setAttempts] = useState([]);
@@ -29,21 +35,82 @@ export default function AdminAttempts() {
       : new Date(right.started_at) - new Date(left.started_at)),
   [attempts, query, sort, status]);
 
+  const controlClass = `${adminInput} mt-0 h-10`;
+
   return (
-    <main className="mx-auto max-w-6xl space-y-6 p-6">
-      <div>
-        <Link to="/admin-panel" className="mb-3 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"><ArrowLeft className="size-4" />Quizzes</Link>
-        <h1 className="text-2xl font-semibold">Attempts</h1>
-        <p className="text-sm text-muted-foreground">Review student submissions and scores.</p>
+    <>
+      <AdminPageHeader
+        eyebrow="Attempts & results"
+        title="Student attempts"
+        description="Review student submissions and scores."
+      />
+
+      <div className="mb-4 flex flex-col gap-3 sm:flex-row">
+        <input
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder="Search student or quiz"
+          aria-label="Search student or quiz"
+          className={cn(controlClass, "flex-1")}
+        />
+        <select value={status} onChange={(event) => setStatus(event.target.value)} aria-label="Filter by status" className={cn(controlClass, "sm:w-44")}>
+          <option value="all">All statuses</option>
+          <option value="in_progress">In progress</option>
+          <option value="submitted">Submitted</option>
+          <option value="auto_submitted">Auto submitted</option>
+        </select>
+        <select value={sort} onChange={(event) => setSort(event.target.value)} aria-label="Sort attempts" className={cn(controlClass, "sm:w-40")}>
+          <option value="newest">Newest</option>
+          <option value="score">Highest score</option>
+        </select>
       </div>
-      <div className="flex flex-col gap-3 sm:flex-row">
-        <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search student or quiz" className="h-9 flex-1 rounded-md border bg-background px-3 text-sm" />
-        <select value={status} onChange={(event) => setStatus(event.target.value)} className="h-9 rounded-md border bg-background px-3 text-sm"><option value="all">All statuses</option><option value="in_progress">In progress</option><option value="submitted">Submitted</option><option value="auto_submitted">Auto submitted</option></select>
-        <select value={sort} onChange={(event) => setSort(event.target.value)} className="h-9 rounded-md border bg-background px-3 text-sm"><option value="newest">Newest</option><option value="score">Highest score</option></select>
-      </div>
-      {loading && <p>Loading attempts...</p>}
-      {error && <p role="alert" className="text-red-600">{error}</p>}
-      {!loading && !error && <div className="overflow-x-auto rounded-lg border bg-white"><table className="w-full min-w-175 text-left text-sm"><thead className="border-b bg-muted/40"><tr>{["Student", "Quiz", "Status", "Score", "Started", "Submitted"].map((heading) => <th key={heading} className="px-4 py-3 font-medium">{heading}</th>)}</tr></thead><tbody className="divide-y">{filtered.map((attempt) => <tr key={attempt.id}><td className="px-4 py-3"><div className="font-medium">{attempt.user?.name ?? "Unknown"}</div><div className="text-muted-foreground">{attempt.user?.email}</div></td><td className="px-4 py-3">{attempt.quiz?.title ?? "Unknown quiz"}</td><td className="px-4 py-3">{attempt.status.replaceAll("_", " ")}</td><td className="px-4 py-3">{attempt.percentage == null ? "-" : `${Number(attempt.percentage).toFixed(1)}%`}</td><td className="px-4 py-3">{new Date(attempt.started_at).toLocaleString()}</td><td className="px-4 py-3">{attempt.submitted_at ? new Date(attempt.submitted_at).toLocaleString() : "-"}</td></tr>)}</tbody></table>{!filtered.length && <p className="p-6 text-center text-muted-foreground">No attempts match these filters.</p>}</div>}
-    </main>
+
+      {loading && <p className="text-muted-foreground">Loading attempts...</p>}
+      {error && (
+        <p role="alert" className="rounded-lg bg-destructive/10 px-4 py-3 text-sm text-destructive">{error}</p>
+      )}
+
+      {!loading && !error && (
+        <AdminCard className="overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-175 text-left text-sm">
+              <thead className="border-b border-border bg-muted/50 text-muted-foreground">
+                <tr>
+                  {["Student", "Quiz", "Status", "Score", "Started", "Submitted"].map((heading) => (
+                    <th key={heading} className="px-5 py-3 font-medium">{heading}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {filtered.map((attempt) => (
+                  <tr key={attempt.id}>
+                    <td className="px-5 py-3">
+                      <div className="font-semibold">{attempt.user?.name ?? "Unknown"}</div>
+                      <div className="text-xs text-muted-foreground">{attempt.user?.email}</div>
+                    </td>
+                    <td className="px-5 py-3">{attempt.quiz?.title ?? "Unknown quiz"}</td>
+                    <td className="px-5 py-3">
+                      <span className={cn("rounded-full px-2.5 py-0.5 text-xs font-semibold capitalize", statusStyles[attempt.status])}>
+                        {attempt.status.replaceAll("_", " ")}
+                      </span>
+                    </td>
+                    <td className="px-5 py-3 font-semibold">
+                      {attempt.percentage == null ? "—" : `${Number(attempt.percentage).toFixed(1)}%`}
+                    </td>
+                    <td className="px-5 py-3 text-muted-foreground">{new Date(attempt.started_at).toLocaleString()}</td>
+                    <td className="px-5 py-3 text-muted-foreground">
+                      {attempt.submitted_at ? new Date(attempt.submitted_at).toLocaleString() : "—"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {!filtered.length && (
+            <p className="p-8 text-center text-muted-foreground">No attempts match these filters.</p>
+          )}
+        </AdminCard>
+      )}
+    </>
   );
 }

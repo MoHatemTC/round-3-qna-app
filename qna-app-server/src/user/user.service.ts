@@ -169,6 +169,16 @@ export class UserService {
     return { status: "verified", message: "Email verified successfully!" };
   }
 
+  // Session payload for the client: the JWT's id/role plus display details.
+  async getSessionUser(tokenUser: { id: string; role: string }) {
+    const user = await this.prismaService.user.findUnique({
+      where: { id: tokenUser.id },
+      select: { id: true, name: true, email: true, role: true }
+    });
+    if (!user) throw new UnauthorizedException("Please login or register");
+    return user;
+  }
+  //////
   async resendVerificationEmail(trimEmail: string) {
     const email = trimEmail.trim().toLowerCase();
     const user = await this.prismaService.user.findUnique({

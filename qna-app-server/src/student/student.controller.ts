@@ -1,4 +1,4 @@
-import { Controller, Get, Param, Req, UseGuards } from "@nestjs/common";
+import { Controller, Get, Post, Param, Req, UseGuards, HttpCode, HttpStatus } from "@nestjs/common";
 import type { Request } from "express";
 import { StudentService } from "./student.service.js";
 import { EmailVerifiedGuard } from "../user/guards/email-verified.guard.js";
@@ -21,5 +21,23 @@ export class StudentController {
   @Get("invite/:token")
   resolveInvite(@Param("token") token: string, @Req() req: Request) {
     return this.studentService.resolveInvite(token, req.user!.id);
+  }
+
+  @Get("notifications")
+  getNotifications(@Req() req: Request) {
+    return this.studentService.getNotifications(req.user!.id);
+  }
+
+  // Declared before ":id/read" so "read-all" is never treated as an id.
+  @Post("notifications/read-all")
+  @HttpCode(HttpStatus.OK)
+  markAllNotificationsRead(@Req() req: Request) {
+    return this.studentService.markAllNotificationsRead(req.user!.id);
+  }
+
+  @Post("notifications/:id/read")
+  @HttpCode(HttpStatus.OK)
+  markNotificationRead(@Param("id") id: string, @Req() req: Request) {
+    return this.studentService.markNotificationRead(id, req.user!.id);
   }
 }

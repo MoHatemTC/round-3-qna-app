@@ -10,6 +10,9 @@ import {
     Star,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useSession } from "@/context/session";
+import AccountMenu from "@/components/AccountMenu";
+import NotificationBell from "@/components/NotificationBell";
 
 const featuresMenu = [
     {
@@ -117,16 +120,56 @@ function NavDropdown({ label, items }) {
     );
 }
 
+function AuthActions() {
+    const { user, loading } = useSession();
+
+    // Hold the slot while the session loads so the header doesn't flash "Log in".
+    if (loading) return <span className="size-9" aria-hidden="true" />;
+    if (user) {
+        return (
+            <>
+                {user.role === "student" && (
+                    // Bell sits a fixed 20px left of the account icon at every width.
+                    <div className="flex flex-1 justify-end pr-5">
+                        <NotificationBell />
+                    </div>
+                )}
+                <AccountMenu />
+            </>
+        );
+    }
+
+    return (
+        <div className="flex items-center gap-4">
+            <Link
+                to="/login"
+                className="text-sm font-medium text-foreground hover:text-muted-foreground transition-colors"
+            >
+                Log in
+            </Link>
+            <Link
+                to="/register"
+                className="rounded-full bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:bg-primary/85 transition-colors"
+            >
+                Start free
+            </Link>
+        </div>
+    );
+}
+
 export default function SiteHeader() {
     return (
         <header className="sticky top-0 z-40 border-b border-border bg-background/95 backdrop-blur">
             <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-6 lg:px-8">
-                <Link to="/" className="flex items-center gap-2">
-                    <span className="flex size-8 items-center justify-center rounded-lg bg-primary text-lg font-bold text-primary-foreground">
-                        Q
-                    </span>
-                    <span className="font-heading text-lg font-black tracking-tight">Quizgate</span>
-                </Link>
+                {/* Logo and actions share the remaining width equally, keeping the nav centred. */}
+                <div className="flex flex-1 items-center">
+                    <Link to="/" className="flex items-center gap-2">
+                        <span className="flex size-8 items-center justify-center rounded-lg bg-primary text-lg font-bold text-primary-foreground">
+                            Q
+                        </span>
+                        <span className="font-heading text-lg font-black tracking-tight">Quizgate</span>
+                    </Link>
+                </div>
 
                 <nav className="hidden items-center gap-8 md:flex">
                     <NavDropdown label="Features" items={featuresMenu} />
@@ -145,19 +188,8 @@ export default function SiteHeader() {
                     </a>
                 </nav>
 
-                <div className="flex items-center gap-4">
-                    <Link
-                        to="/login"
-                        className="text-sm font-medium text-foreground hover:text-muted-foreground transition-colors"
-                    >
-                        Log in
-                    </Link>
-                    <Link
-                        to="/register"
-                        className="rounded-full bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:bg-primary/85 transition-colors"
-                    >
-                        Start free
-                    </Link>
+                <div className="flex flex-1 items-center justify-end">
+                    <AuthActions />
                 </div>
             </div>
         </header>

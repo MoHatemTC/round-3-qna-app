@@ -4,14 +4,16 @@
     {
       "name": "qna-app-client",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev", "--prefix", "qna-app-client"],
-      "port": 5173,
-      "autoPort": true
+      "runtimeArgs": ["run", "dev", "--prefix", "qna-app-client", "--", "--port", "5180", "--strictPort"],
+      "port": 5180
     },
     {
       "name": "qna-app-server",
-      "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "start:dev", "--prefix", "qna-app-server"],
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "-e",
+        "process.env.PATH=(process.env.SystemRoot||'C:\\\\Windows')+'\\\\System32;'+process.env.PATH;require('child_process').spawn('npm',['run','start:dev','--prefix','qna-app-server'],{stdio:'inherit',shell:true}).on('exit',(code)=>process.exit(code??0))"
+      ],
       "port": 3000
     }
   ]

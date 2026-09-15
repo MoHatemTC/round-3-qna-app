@@ -33,6 +33,12 @@ enum EmailStatus {
   failed
 }
 
+enum InvitationStatus {
+  sent
+  failed
+  accepted
+}
+
 enum AttemptStatus {
   in_progress
   submitted

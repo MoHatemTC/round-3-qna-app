@@ -43,8 +43,8 @@ export class UserController {
   }
 
   @Get("/session")
-  session(@Req() req: Request) {
-    return { user: req.user };
+  async session(@Req() req: Request) {
+    return { user: await this.userService.getSessionUser(req.user!) };
   }
 
   @Post("/logout")

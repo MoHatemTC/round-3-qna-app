@@ -40,6 +40,18 @@ export function getAttemptResult(attemptId) {
   return api.get(`/attempts/${attemptId}/result`)
 }
 
+export function getNotifications() {
+  return api.get("/student/notifications")
+}
+
+export function markNotificationRead(id) {
+  return api.post(`/student/notifications/${id}/read`, {})
+}
+
+export function markAllNotificationsRead() {
+  return api.post("/student/notifications/read-all", {})
+}
+
 export function getAdminAttempts() {
   return api.get("/attempts/admin/attempts")
 }
