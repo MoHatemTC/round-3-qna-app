@@ -30,8 +30,22 @@ export default function AdminQuizInvites() {
         setError('');
 
         try {
-            await api.post(`/admin/quizzes/${quizId}/invitations`, { email });
-            setMessage('Invitation sent successfully to ' + email);
+            const response = await fetch(`http://localhost:3000/admin/quizzes/${quizId}/invitations`, {
+                method: 'POST',
+                "credentials": "include",
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ emails: [email], userIds: [] })
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(data.message || 'Failed to send invitation');
+            }
+
+            setMessage(`Invitation processed successfully! Sent: ${data.sent}, Failed: ${data.failed}, Skipped: ${data.skipped}`);
             setEmail('');
         } catch (err) {
             setError(err.message || 'Something went wrong');

@@ -50,6 +50,12 @@ enum QuestionType {
   true_false
 }
 
+enum InvitationStatus {
+  sent
+  failed
+  accepted
+}
+
 model User {
   id                   String           @id @default(uuid())
   name                 String
@@ -116,7 +122,7 @@ model AttemptAnswer {
 }
 
 model EmailDeliveryLog {
-  id            String      @id @default(uuid())  
+  id            String      @id @default(uuid())
   type          EmailType
   recipient     String
   related_id    String?

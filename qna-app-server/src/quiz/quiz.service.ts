@@ -119,32 +119,129 @@ export class QuizService {
         "This quiz has already ended, so students can no longer take it. Extend its end time to invite more students."
       );
     }
-    const user = await this.prisma.user.findUnique({
-      where: { email: dto.email }
-    });
-    if (!user) throw new NotFoundException("Student account not found");
-    const existing = await this.prisma.quizInvitation.findUnique({
-      where: { quiz_id_email: { quiz_id: id, email: user.email } }
-    });
-    if (existing)
-      throw new ConflictException("This student has already been invited");
-    const token = randomBytes(32).toString("hex");
-    const invitation = await this.prisma.quizInvitation.create({
-      data: {
-        quiz_id: id,
-        email: user.email,
-        user_id: user.id,
-        token_hash: createHash("sha256").update(token).digest("hex")
+    if (quiz.status !== QuizStatus.published) {
+      throw new BadRequestException(
+        "Only published quizzes can receive invitations"
+      );
+    }
+    const usersEmail: string[] = dto.emails ?? [],
+      userIds: string[] = dto.userIds ?? [];
+    if (userIds.length) {
+      const users = await this.prisma.user.findMany({
+        where: { id: { in: userIds } },
+        select: { id: true, email: true }
+      });
+      for (const user of users) {
+        if (user?.email) {
+          usersEmail.push(user.email);
+        }
       }
+    }
+    const uniqueUsersEmail = [
+      ...new Set(
+        usersEmail.map((userEmail) => userEmail.trim().toLocaleLowerCase())
+      )
+    ];
+    let sentCount = 0,
+      failedCount = 0,
+      skippedCount = 0;
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    for (const email of uniqueUsersEmail) {
+      if (!emailRegex.test(email)) {
+        failedCount++;
+        continue;
+      }
+      let invitationId: string | undefined;
+      try {
+        const user = await this.prisma.user.findUnique({
+          where: { email }
+        });
+        const existing = await this.prisma.quizInvitation.findUnique({
+          where: { quiz_id_email: { quiz_id: id, email } }
+        });
+        if (existing && existing.status !== "failed") {
+          skippedCount++;
+          continue;
+        }
+        const token = randomBytes(32).toString("hex");
+        const tokenHash = createHash("sha256").update(token).digest("hex");
+        const invitation = existing
+          ? await this.prisma.quizInvitation.update({
+              where: { id: existing.id },
+              data: {
+                user_id: user?.id ?? null,
+                token_hash: tokenHash,
+                status: "sent",
+                sent_at: new Date(),
+                accepted_at: null,
+                expires_at: quiz.ends_at
+              }
+            })
+          : await this.prisma.quizInvitation.create({
+              data: {
+                quiz_id: id,
+                email,
+                user_id: user?.id ?? null,
+                token_hash: tokenHash,
+                status: "sent",
+                sent_at: new Date(),
+                expires_at: quiz.ends_at
+              }
+            });
+        invitationId = invitation.id;
+        const link = `${process.env.CLIENT_URL ?? "http://localhost:5173"}/quiz/invite/${token}`;
+        await this.notifications.send(
+          "quiz-invitation",
+          email,
+          {
+            title: quiz.title,
+            durationMinutes: quiz.duration_minutes,
+            deadline: quiz.ends_at
+          },
+          link,
+          invitationId
+        );
+        sentCount++;
+      } catch (error) {
+        failedCount++;
+        if (invitationId) {
+          await this.prisma.quizInvitation.update({
+            where: { id: invitationId },
+            data: { status: "failed" }
+          });
+        }
+      }
+    }
+
+    return {
+      sent: sentCount,
+      failed: failedCount,
+      skipped: skippedCount
+    };
+  }
+
+  async getQuizInvitations(quizId: string) {
+    const quizInvitation = await this.findOne(quizId);
+    if (!quizInvitation) {
+      throw new NotFoundException("Quiz invitation not found!");
+    }
+    return this.prisma.quizInvitation.findMany({
+      where: { quiz_id: quizId },
+      select: {
+        id: true,
+        email: true,
+        status: true,
+        sent_at: true,
+        accepted_at: true,
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true
+          }
+        }
+      },
+      orderBy: { created_at: "desc" }
     });
-    const link = `${process.env.CLIENT_URL ?? "http://localhost:5173"}/quiz/invite/${token}`;
-    await this.notifications.send(
-      "quiz-invitation",
-      user.email,
-      quiz.title,
-      link,
-      invitation.id
-    );
-    return { id: invitation.id, message: "Invitation sent" };
   }
 }
