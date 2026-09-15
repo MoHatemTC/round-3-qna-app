@@ -43,6 +43,7 @@ export class StudentService {
             title: true,
             duration_minutes: true,
             ends_at: true,
+            starts_at: true,
             status: true
           }
         }
@@ -50,7 +51,6 @@ export class StudentService {
       orderBy: { quiz: { starts_at: "asc" } }
     });
     ///
-    const states = await this.attemptStateByQuiz(userId);
     const now = new Date();
     ///
     const attempts = await this.prisma.attempt.findMany({
