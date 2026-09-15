@@ -9,6 +9,11 @@ import { PrismaService } from "../prisma.service.js";
 import { StartAttemptDto } from "./dto/start-attempt.dto.js";
 import { SubmitAttemptDto } from "./dto/submit-attempt.dto.js";
 import { AttemptStatus, QuizStatus } from "../generated/prisma/enums.js";
+import {
+  SUBMIT_GRACE_MS,
+  computeAttemptEndTime,
+  finalizeExpiredAttempts
+} from "./attempt-timing.js";
 
 @Injectable()
 export class AttemptService {
@@ -33,8 +38,7 @@ export class AttemptService {
     durationMinutes: number,
     quizEndsAt: Date
   ) {
-    const byDuration = new Date(startedAt.getTime() + durationMinutes * 60_000);
-    return byDuration < quizEndsAt ? byDuration : quizEndsAt;
+    return computeAttemptEndTime(startedAt, durationMinutes, quizEndsAt);
   }
 
   async start(dto: StartAttemptDto, userId: string) {
@@ -52,11 +56,41 @@ export class AttemptService {
     if (now > quiz.ends_at)
       throw new BadRequestException("Quiz has already ended");
 
-    const invitation = await this.prisma.quizInvitation.findUnique({
-      where: { quiz_id_user_id: { quiz_id: quiz.id, user_id: userId } }
+    const invitation = await this.prisma.quizInvitation.findFirst({
+      where: { quiz_id: quiz.id, user_id: userId }
     });
     if (!invitation)
       throw new ForbiddenException("You are not invited to this quiz");
+
+    await finalizeExpiredAttempts(this.prisma, {
+      quiz_id: quiz.id,
+      user_id: userId
+    });
+
+    // Resume an attempt that is still running instead of creating a new one -
+    // otherwise pressing "Start" again would hand out a fresh timer.
+    const runningAttempt = await this.prisma.attempt.findFirst({
+      where: {
+        quiz_id: quiz.id,
+        user_id: userId,
+        status: AttemptStatus.in_progress
+      },
+      orderBy: { started_at: "desc" }
+    });
+    if (runningAttempt) {
+      const endTime = this.computeEndTime(
+        runningAttempt.started_at,
+        quiz.duration_minutes,
+        quiz.ends_at
+      );
+      if (now <= endTime) {
+        const questions = await this.getStudentQuestions(quiz.id);
+        return { ...runningAttempt, end_time: endTime, questions };
+      }
+      throw new ConflictException(
+        "Your time for this quiz has run out. Only one attempt is allowed."
+      );
+    }
 
     const existingSubmittedAttempt = await this.prisma.attempt.findFirst({
       where: {
@@ -143,9 +177,14 @@ export class AttemptService {
       attempt.quiz.ends_at
     );
 
-    if (now > endTime) {
+    if (now.getTime() > endTime.getTime() + SUBMIT_GRACE_MS) {
+      await finalizeExpiredAttempts(this.prisma, { id: attempt.id });
       throw new BadRequestException("This attempt's time has expired");
     }
+    // Submitted at (or just after) the deadline = the timer ran out.
+    const finalStatus =
+      now > endTime ? AttemptStatus.auto_submitted : AttemptStatus.submitted;
+    const submittedAt = now > endTime ? endTime : now;
 
     const questions = await this.prisma.question.findMany({
       where: { quiz_id: attempt.quiz_id },
@@ -236,8 +275,8 @@ export class AttemptService {
       this.prisma.attempt.update({
         where: { id: attempt.id },
         data: {
-          status: AttemptStatus.submitted,
-          submitted_at: now,
+          status: finalStatus,
+          submitted_at: submittedAt,
           score,
           percentage: maxScore === 0 ? 0 : (score / maxScore) * 100
         }
@@ -248,6 +287,7 @@ export class AttemptService {
   }
 
   async getResult(id: string, userId: string) {
+    await finalizeExpiredAttempts(this.prisma, { id });
     const attempt = await this.findOwnedAttempt(id, userId);
     const answers = await this.prisma.attemptAnswer.findMany({
       where: { attempt_id: id },
@@ -292,7 +332,8 @@ export class AttemptService {
     };
   }
 
-  getAdminAttempts() {
+  async getAdminAttempts() {
+    await finalizeExpiredAttempts(this.prisma);
     return this.prisma.attempt.findMany({
       orderBy: { created_at: "desc" },
       select: {

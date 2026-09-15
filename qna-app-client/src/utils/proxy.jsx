@@ -1,83 +1,38 @@
-import { useEffect, useState } from "react"
 import { Navigate, Outlet, useLocation } from "react-router"
+import { dashboardPathFor, useSession } from "@/context/session"
+
+function SessionCheck() {
+    return (
+        <div className="flex min-h-screen items-center justify-center text-sm text-muted-foreground">
+            Checking your session...
+        </div>
+    )
+}
 
 export function Proxy() {
     const location = useLocation()
-    const [session, setSession] = useState(null)
-    const [loading, setLoading] = useState(true)
+    const { user, loading } = useSession()
 
-    useEffect(() => {
-        let active = true
+    if (loading) return <SessionCheck />
+    if (!user) return <Navigate to="/login" replace />
 
-        fetch("http://localhost:3000/auth/session", { credentials: "include" })
-            .then((response) => {
-                if (!response.ok) throw new Error("Unauthenticated")
-                return response.json()
-            })
-            .then((data) => {
-                if (active) setSession(data.user)
-            })
-            .catch(() => {
-                if (active) setSession(false)
-            })
-            .finally(() => {
-                if (active) setLoading(false)
-            })
-
-        return () => {
-            active = false
-        }
-    }, [])
-
-    if (loading) return <div className="min-h-screen flex items-center justify-center">Checking your session...</div>
-    if (!session) return <Navigate to="/login" replace />
-
-    const role = session.role
-
-    if (role === "admin" && !location.pathname.startsWith("/admin-panel")) {
-        return <Navigate to={'/admin-panel'} replace />
+    if (user.role === "admin" && !location.pathname.startsWith("/admin-panel")) {
+        return <Navigate to="/admin-panel" replace />
     }
 
     const studentAllowedPaths = ["/dashboard", "/quiz"]
-
-if (role === "student" && !studentAllowedPaths.some(p => location.pathname.startsWith(p))) {
-    return <Navigate to={'/dashboard'} replace />
-}
+    if (user.role === "student" && !studentAllowedPaths.some((p) => location.pathname.startsWith(p))) {
+        return <Navigate to="/dashboard" replace />
+    }
 
     return <Outlet />
 }
 
 export function PublicRoute() {
-    const [session, setSession] = useState(null)
-    const [loading, setLoading] = useState(true)
+    const { user, loading } = useSession()
 
-    useEffect(() => {
-        let active = true
-
-        fetch("http://localhost:3000/auth/session", { credentials: "include" })
-            .then((response) => {
-                if (!response.ok) throw new Error("Unauthenticated")
-                return response.json()
-            })
-            .then((data) => {
-                if (active) setSession(data.user)
-            })
-            .catch(() => {
-                if (active) setSession(false)
-            })
-            .finally(() => {
-                if (active) setLoading(false)
-            })
-
-        return () => { active = false }
-    }, [])
-
-    if (loading) return <div className="min-h-screen flex items-center justify-center">Checking your session...</div>
-
-    if (session) {
-        const targetPath = session.role === "admin" ? "/admin-panel" : "/dashboard"
-        return <Navigate to={targetPath} replace />
-    }
+    if (loading) return <SessionCheck />
+    if (user) return <Navigate to={dashboardPathFor(user)} replace />
 
     return <Outlet />
 }

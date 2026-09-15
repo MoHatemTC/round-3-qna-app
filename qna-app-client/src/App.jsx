@@ -13,6 +13,8 @@ import RegisterPage from './pages/RegisterPage'
 import LoginPage from './pages/LoginPage'
 import { Proxy, PublicRoute } from './utils/proxy';
 import VerifyAccountPage from './pages/VerifyAccountPage';
+import AdminLayout from './components/admin/AdminLayout';
+import AdminDashboard from './pages/AdminDashboard';
 import AdminQuizzes from './pages/AdminQuizzes';
 import AdminQuizQuestions from './pages/AdminQuizQuestions';
 import StudentDashboard from './pages/StudentDashboard';
@@ -61,10 +63,13 @@ function App() {
           <Route path='/verify-account' element={<VerifyAccountPage />} />
         </Route>
         <Route element={<Proxy />}>
-          <Route path='/admin-panel' element={<AdminQuizzes />} />
-          <Route path='/admin-panel/attempts' element={<AdminAttempts />} />
-          <Route path='/admin-panel/quizzes/:quizId/invites' element={<AdminQuizInvites />} />
-          <Route path='/admin-panel/quizzes/:quizId/questions' element={<AdminQuizQuestions />} />
+          <Route path='/admin-panel' element={<AdminLayout />}>
+            <Route index element={<AdminDashboard />} />
+            <Route path='quizzes' element={<AdminQuizzes />} />
+            <Route path='quizzes/:quizId/questions' element={<AdminQuizQuestions />} />
+            <Route path='quizzes/:quizId/invites' element={<AdminQuizInvites />} />
+            <Route path='attempts' element={<AdminAttempts />} />
+          </Route>
           <Route path='/dashboard' element={<StudentDashboard />} />
           <Route path="/quiz/invite/:token" element={<InviteEntry />} />
           <Route path="/quiz/:id" element={<QuizPlaceholder />} />
