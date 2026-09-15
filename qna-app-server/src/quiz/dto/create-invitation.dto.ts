@@ -1,7 +1,15 @@
-import { IsEmail, IsNotEmpty } from "class-validator";
+import { ArrayMaxSize, IsArray, IsOptional, IsString } from "class-validator";
 
 export class CreateInvitationDto {
-  @IsEmail()
-  @IsNotEmpty()
-  email!: string;
+  @IsArray()
+  @ArrayMaxSize(100)
+  @IsOptional()
+  @IsString({ each: true })
+  emails?: string[];
+
+  @IsArray()
+  @ArrayMaxSize(100)
+  @IsOptional()
+  @IsString({ each: true })
+  userIds?: string[];
 }

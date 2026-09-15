@@ -10,7 +10,7 @@ import * as bcrypt from "bcryptjs";
 import { CreateUserDTO } from "./dto/create-user-dto.js";
 import { LoginUserDTO } from "./dto/login-user-dto.js";
 import { JwtService } from "@nestjs/jwt";
-import { createHash, randomBytes, randomInt } from "node:crypto";
+import { createHash, randomInt } from "node:crypto";
 import { NotificationService } from "../notifications/notifications.service.js";
 
 const DUMMY_HASH =
@@ -28,11 +28,19 @@ export class UserService {
     return await bcrypt.hash(plainText, saltRound);
   }
 
-  private async encryptToken(plainToken: string, saltRound: number) {
+  private encryptToken(plainToken: string, saltRound: number) {
     return createHash("sha256").update(plainToken).digest("hex");
   }
 
-  async register({ name, email, password }: CreateUserDTO) {
+  private linkPendingInvitations(email: string, userId: string) {
+    return this.prismaService.quizInvitation.updateMany({
+      where: { email, user_id: null },
+      data: { user_id: userId }
+    });
+  }
+
+  async register({ name, email: emailTrim, password }: CreateUserDTO) {
+    const email = emailTrim.trim().toLowerCase();
     const user = await this.prismaService.user.findUnique({
       where: { email }
     });
@@ -43,7 +51,7 @@ export class UserService {
 
     const hashedPassword = await this.encryptPassword(password, 10);
 
-    const hashedToken = await this.encryptToken(token, 10);
+    const hashedToken = this.encryptToken(token, 10);
 
     const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
 
@@ -71,7 +79,8 @@ export class UserService {
     };
   }
 
-  async login({ email, password }: LoginUserDTO) {
+  async login({ email: trimEmail, password }: LoginUserDTO) {
+    const email = trimEmail.trim().toLowerCase();
     const user = await this.prismaService.user.findUnique({
       where: { email }
     });
@@ -113,6 +122,8 @@ export class UserService {
       });
     }
 
+    await this.linkPendingInvitations(user.email, user.id);
+
     const token = await this.jwtService.signAsync({
       id: user.id,
       role: user.role
@@ -125,12 +136,13 @@ export class UserService {
 
   async verifyEmailToken(token: string) {
     if (!token) throw new BadRequestException("Verification token is required");
-    const tokenHash = await this.encryptToken(token, 0);
+    const tokenHash = this.encryptToken(token, 0);
     const user = await this.prismaService.user.findFirst({
       where: { verification_token: tokenHash }
     });
 
     if (!user) throw new BadRequestException("Invalid verification token");
+    await this.linkPendingInvitations(user.email, user.id);
     if (user.email_verified_at)
       return {
         status: "already_verified",
@@ -152,10 +164,13 @@ export class UserService {
       }
     });
 
+    await this.linkPendingInvitations(user.email, user.id);
+
     return { status: "verified", message: "Email verified successfully!" };
   }
 
-  async resendVerificationEmail(email: string) {
+  async resendVerificationEmail(trimEmail: string) {
+    const email = trimEmail.trim().toLowerCase();
     const user = await this.prismaService.user.findUnique({
       where: { email }
     });
@@ -177,7 +192,7 @@ export class UserService {
       );
     }
     const token = randomInt(100_000, 1_000_000).toString();
-    const hashedToken = await this.encryptToken(token, 10);
+    const hashedToken = this.encryptToken(token, 10);
     const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
 
     await this.prismaService.user.update({
