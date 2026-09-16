@@ -277,7 +277,8 @@ export class QuizService {
       submitted_count: submittedCount,
       completion_rate:
         invitedCount === 0 ? 0 : (submittedCount / invitedCount) * 100,
-      average_score: submittedAverage._avg.percentage ?? 0
+      average_score:
+        submittedCount === 0 ? null : submittedAverage._avg.percentage
     };
   }
 
