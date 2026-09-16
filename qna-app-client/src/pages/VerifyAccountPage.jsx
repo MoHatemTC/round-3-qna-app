@@ -1,6 +1,10 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router";
+import { CircleCheck, MailCheck, MailQuestion } from "lucide-react";
+import AuthCard, { AuthMessage, authButtonClass, authInputClass } from "@/components/AuthCard";
 import { api } from "@/lib/api";
+
+const RESEND_COOLDOWN_SECONDS = 60
 
 const VerifyAccountPage = () => {
 
@@ -8,7 +12,10 @@ const VerifyAccountPage = () => {
   const [token, setToken] = useState(searchParams.get("token") ?? "")
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
+  const [notice, setNotice] = useState("")
   const [verified, setVerified] = useState(false)
+  const [resending, setResending] = useState(false)
+  const [cooldown, setCooldown] = useState(0)
 
   const navigate = useNavigate()
 
@@ -16,84 +23,149 @@ const VerifyAccountPage = () => {
 
   const email = state?.email
 
+  useEffect(() => {
+    if (cooldown <= 0) return
+    const timer = setTimeout(() => setCooldown((seconds) => seconds - 1), 1000)
+    return () => clearTimeout(timer)
+  }, [cooldown])
+
   async function handleSubmit(e) {
     e.preventDefault()
 
     setLoading(true)
     setError("")
+    setNotice("")
 
     try {
-      await api.get(`/auth/verify-email?token=${encodeURIComponent(token)}`)
+      await api.get(`/auth/verify-email?token=${encodeURIComponent(token.trim())}`)
       setVerified(true)
 
     } catch (error) {
-      setError(error instanceof Error ? error.message : "This verification link is invalid or expired.")
+      setError(error instanceof Error ? error.message : "This verification code is invalid or expired.")
     } finally {
       setLoading(false)
     }
   }
 
+  async function handleResend() {
+    setResending(true)
+    setError("")
+    setNotice("")
+
+    try {
+      await api.post("/auth/resend-verification", { email })
+      setNotice("A new verification code was sent to your inbox.")
+      setCooldown(RESEND_COOLDOWN_SECONDS)
+    } catch (resendError) {
+      setError(resendError.message)
+    } finally {
+      setResending(false)
+    }
+  }
+
   if (!email && !token) {
     return (
-      <main className="min-h-screen flex flex-col items-center justify-center">
-        <h2 className="text-xl font-bold">Verify Account!</h2>
-        <p className="mt-4 text-sm">
-          We don't know which email to verify. Please{" "}
-          <Link to="/register" className="text-blue-500 underline">
-            register
-          </Link>{" "}
-          again to get a fresh code.
+      <AuthCard
+        icon={MailQuestion}
+        title="Verify your account"
+        subtitle="We don't know which email to verify yet."
+      >
+        <p className="mt-6 text-sm text-center text-muted-foreground">
+          Sign in with your account to get a fresh code, or create a new account.
         </p>
-      </main>
+        <Link to="/login" className={`${authButtonClass} mt-6 block text-center`}>
+          Go to sign in
+        </Link>
+        <p className="mt-6 text-sm text-center text-muted-foreground">
+          New here?{" "}
+          <Link to="/register" className="font-semibold text-orange-600 hover:underline">
+            Register →
+          </Link>
+        </p>
+      </AuthCard>
     )
   }
 
   if (verified) {
     return (
-      <main className="min-h-screen flex flex-col items-center justify-center p-6 text-center">
-        <h2 className="text-xl font-bold">Email verified</h2>
-        <p className="mt-4 text-sm text-muted-foreground">Your account is ready. Sign in to continue.</p>
+      <AuthCard
+        icon={CircleCheck}
+        title="Email verified"
+        subtitle="Your account is ready. Sign in to continue."
+      >
         <button
           type="button"
           onClick={() => navigate("/login", { replace: true })}
-          className="mt-6 rounded-full bg-blue-500 px-5 py-2 text-sm text-white hover:bg-blue-600"
+          className={`${authButtonClass} mt-6`}
         >
           Continue to sign in
         </button>
-      </main>
+      </AuthCard>
     )
   }
 
   return (
-    <main className="min-h-screen flex flex-col items-center justify-center">
-      <h2 className="text-xl font-bold">Verify Account!</h2>
-      <form
-        onSubmit={handleSubmit}
-        className="flex flex-col w-100 border border-gray rounded shadow-sm p-2 mt-5"
-      >
-        {error && <p role="alert" className="text-sm text-red-600">{error}</p>}
-        <input
-          type="text"
-          placeholder="Enter token"
-          className="p-2 border rounded my-2"
-          value={token}
-          onChange={(e) => setToken(e.target.value)}
-          required
-        />
-        <button
-          type="submit"
-          disabled={loading}
-          className="mt-10 cursor-pointer border rounded-full bg-blue-500 text-white w-30 py-1 inline-block mx-auto hover:bg-blue-600"
-        >
-          {loading ? "Loading..." : "Submit"}
+    <AuthCard
+      icon={MailCheck}
+      title="Verify your account"
+      subtitle={
+        email ? (
+          <>
+            We sent a 6-digit code to <span className="font-semibold text-foreground">{email}</span>
+          </>
+        ) : (
+          "Enter the verification code from your email"
+        )
+      }
+    >
+      <AuthMessage>{error}</AuthMessage>
+      <AuthMessage tone="success">{notice}</AuthMessage>
+
+      <form onSubmit={handleSubmit} className="mt-6 flex flex-col gap-4">
+        <div>
+          <label className="text-sm font-medium" htmlFor="token">
+            Verification code
+          </label>
+          <input
+            id="token"
+            type="text"
+            inputMode="numeric"
+            autoComplete="one-time-code"
+            placeholder="123456"
+            className={`${authInputClass} text-center font-mono text-lg tracking-[0.4em]`}
+            value={token}
+            onChange={(e) => setToken(e.target.value)}
+            required
+          />
+        </div>
+        <button type="submit" disabled={loading} className={authButtonClass}>
+          {loading ? "Verifying..." : "Verify account"}
         </button>
       </form>
-      {email && <button type="button" className="mt-4 text-sm underline" onClick={async () => {
-        try { await api.post("/auth/resend-verification", { email }); setError("A new verification email was sent.") }
-        catch (resendError) { setError(resendError.message) }
-      }}>Resend verification email</button>}
 
-    </main>
+      <p className="mt-6 text-sm text-center text-muted-foreground">
+        {email ? (
+          <>
+            Didn't get the code?{" "}
+            <button
+              type="button"
+              onClick={handleResend}
+              disabled={resending || cooldown > 0}
+              className="font-semibold text-orange-600 hover:underline disabled:cursor-not-allowed disabled:text-muted-foreground disabled:no-underline"
+            >
+              {resending ? "Sending..." : cooldown > 0 ? `Resend in ${cooldown}s` : "Resend →"}
+            </button>
+          </>
+        ) : (
+          <>
+            Already verified?{" "}
+            <Link to="/login" className="font-semibold text-orange-600 hover:underline">
+              Sign in →
+            </Link>
+          </>
+        )}
+      </p>
+    </AuthCard>
   )
 }
 

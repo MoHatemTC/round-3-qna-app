@@ -1,13 +1,27 @@
-import { useState } from 'react';
-import { useParams, useNavigate } from 'react-router';
+import { useEffect, useState } from 'react';
+import { Link, useParams } from 'react-router';
+import { ArrowLeft, Mail } from 'lucide-react';
+import { api } from '@/lib/api';
+import QuizStatusBadge from '@/components/admin/QuizStatusBadge';
+import { formatDateTime, hasEnded } from '@/lib/quizStatus';
+import { useNow } from '@/hooks/useNow';
+import { AdminCard, AdminPageHeader, adminInput, adminPrimaryButton } from '@/components/admin/AdminLayout';
 
 export default function AdminQuizInvites() {
     const { quizId } = useParams();
-    const navigate = useNavigate();
+    const [quiz, setQuiz] = useState(null);
     const [email, setEmail] = useState('');
     const [loading, setLoading] = useState(false);
     const [message, setMessage] = useState('');
     const [error, setError] = useState('');
+    const now = useNow();
+    const ended = Boolean(quiz && hasEnded(quiz, now));
+
+    useEffect(() => {
+        api.get(`/admin/quizzes/${quizId}`)
+            .then(setQuiz)
+            .catch((err) => setError(err.message));
+    }, [quizId]);
 
     const handleSendInvitation = async (e) => {
         e.preventDefault();
@@ -22,7 +36,7 @@ export default function AdminQuizInvites() {
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({ email })
+                body: JSON.stringify({ emails: [email], userIds: [] })
             });
 
             const data = await response.json();
@@ -31,7 +45,7 @@ export default function AdminQuizInvites() {
                 throw new Error(data.message || 'Failed to send invitation');
             }
 
-            setMessage('Invitation sent successfully to ' + email);
+            setMessage(`Invitation processed successfully! Sent: ${data.sent}, Failed: ${data.failed}, Skipped: ${data.skipped}`);
             setEmail('');
         } catch (err) {
             setError(err.message || 'Something went wrong');
@@ -41,38 +55,60 @@ export default function AdminQuizInvites() {
     };
 
     return (
-        <div style={{ padding: '20px', maxWidth: '600px', margin: '0 auto', textAlign: 'left' }}>
-            <button onClick={() => navigate('/admin-panel')} style={{ marginBottom: '20px', cursor: 'pointer' }}>
-                &larr; Back to Quizzes
-            </button>
+        <>
+            <Link
+                to="/admin-panel/quizzes"
+                className="mb-4 inline-flex items-center gap-1 text-sm font-medium text-muted-foreground hover:text-foreground"
+            >
+                <ArrowLeft className="size-4" /> Back to quizzes
+            </Link>
 
-            <h2>Invite Students to Quiz</h2>
-            <p style={{ color: '#666' }}>Quiz ID: {quizId}</p>
+            <AdminPageHeader
+                eyebrow="Invitations"
+                title={quiz ? quiz.title : 'Invite students'}
+                description="Send a student an email invitation to take this quiz."
+            />
 
-            <form onSubmit={handleSendInvitation} style={{ display: 'flex', flexDirection: 'column', gap: '15px', marginTop: '20px' }}>
-                <div>
-                    <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>Student Email:</label>
-                    <input
-                        type="email"
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                        placeholder="student@example.com"
-                        required
-                        style={{ width: '100%', padding: '10px', fontSize: '16px', borderRadius: '4px', border: '1px solid #ccc' }}
-                    />
-                </div>
+            <AdminCard className="max-w-xl p-6">
+                {quiz && (
+                    <div className="mb-5 border-b border-border pb-5">
+                        <QuizStatusBadge quiz={quiz} />
+                        {quiz.status !== 'published' && (
+                            <p className="mt-2 text-sm text-muted-foreground">
+                                Students can be invited now, but they can only take the quiz once it's published.
+                            </p>
+                        )}
+                    </div>
+                )}
 
-                <button
-                    type="submit"
-                    disabled={loading}
-                    style={{ padding: '10px 20px', backgroundColor: '#007bff', color: 'white', border: 'none', borderRadius: '4px', fontSize: '16px', cursor: 'pointer' }}
-                >
-                    {loading ? 'Sending...' : 'Send Invitation'}
-                </button>
-            </form>
+                {ended && (
+                    <p role="alert" className="mb-4 rounded-lg bg-destructive/10 px-4 py-3 text-sm text-destructive">
+                        This quiz ended {formatDateTime(quiz.ends_at)}, so invitations are closed. Edit the quiz and set a later end time to invite more students.
+                    </p>
+                )}
 
-            {message && <p style={{ color: 'green', marginTop: '15px' }}>{message}</p>}
-            {error && <p style={{ color: 'red', marginTop: '15px' }}>{error}</p>}
-        </div>
+                <form onSubmit={handleSendInvitation} className="space-y-4">
+                    <div>
+                        <label className="text-sm font-medium" htmlFor="invite-email">Student email</label>
+                        <input
+                            id="invite-email"
+                            type="email"
+                            value={email}
+                            onChange={(e) => setEmail(e.target.value)}
+                            placeholder="student@school.edu"
+                            required
+                            className={adminInput}
+                        />
+                    </div>
+
+                    <button type="submit" disabled={loading || ended} className={adminPrimaryButton}>
+                        <Mail /> {loading ? 'Sending...' : 'Send invitation'}
+                    </button>
+                </form>
+
+                {message && <p role="status" className="mt-4 text-sm text-green-700 dark:text-green-400">{message}</p>}
+                {error && <p role="alert" className="mt-4 text-sm text-destructive">{error}</p>}
+            </AdminCard>
+        </>
     );
 }

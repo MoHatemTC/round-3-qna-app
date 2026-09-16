@@ -1,19 +1,36 @@
 import { useEffect, useState } from "react"
-import { Link, useNavigate } from "react-router"
-import { Pencil, Trash2, Plus, X, LogOut, ListChecks } from "lucide-react"
+import { Link, useLocation, useNavigate } from "react-router"
+import { CircleAlert, Clock, ListChecks, Mail, Pencil, Plus, Trash2, X } from "lucide-react"
 import {
   createQuiz,
   deleteQuiz,
   getQuizzes,
-  logout,
   updateQuiz,
 } from "@/services/services"
-import { api } from "@/lib/api"
 import { Button, buttonVariants } from "@/components/ui/button"
+import QuizStatusBadge from "@/components/admin/QuizStatusBadge"
+import PublishSwitch from "@/components/admin/PublishSwitch"
+import {
+  AdminCard,
+  AdminPageHeader,
+  adminInput,
+  adminPrimaryButton,
+  adminSecondaryButton,
+} from "@/components/admin/AdminLayout"
+import {
+  formatDateTime,
+  formatDuration,
+  hasEnded,
+  localTimeZone,
+  questionCount,
+  quizToPayload,
+  quizWindowState,
+  scheduleProblems,
+} from "@/lib/quizStatus"
+import { useNow } from "@/hooks/useNow"
 
-// Admin: Quizzes & Question Bank
-// Quiz list + create/edit form for /admin/quizzes. Requires an admin session
-// cookie (see src/pages/Login.jsx) - a student session gets a 403 from the API.
+// Admin: quiz list + create/edit form. Requires an admin session cookie -
+// a student session gets a 403 from the API.
 
 const emptyForm = {
   title: "",
@@ -31,48 +48,215 @@ function toDatetimeLocal(iso) {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
 }
 
-function formatDate(iso) {
-  return new Date(iso).toLocaleString(undefined, {
-    dateStyle: "medium",
-    timeStyle: "short",
+function WindowLabel({ quiz, now }) {
+  const state = quizWindowState(quiz, now)
+  const styles = {
+    upcoming: "text-blue-700 dark:text-blue-300",
+    open: "text-green-700 dark:text-green-400",
+    closed: "text-red-700 dark:text-red-400",
+  }
+  const text = {
+    upcoming: `Opens in ${formatDuration(new Date(quiz.starts_at) - now)}`,
+    open: `Open · closes in ${formatDuration(new Date(quiz.ends_at) - now)}`,
+    closed: "Ended",
+  }
+  return <p className={`mt-1 font-semibold ${styles[state]}`}>{text[state]}</p>
+}
+
+function ScheduleSummary({ form, problems }) {
+  if (!form.starts_at || !form.ends_at) {
+    return (
+      <p className="text-xs text-muted-foreground">
+        Times are in your local time zone ({localTimeZone}).
+      </p>
+    )
+  }
+
+  if (problems.length) {
+    return (
+      <ul role="alert" className="space-y-1 text-sm text-destructive">
+        {problems.map((problem) => (
+          <li key={problem} className="flex gap-2">
+            <CircleAlert className="mt-0.5 size-3.5 shrink-0" /> {problem}
+          </li>
+        ))}
+      </ul>
+    )
+  }
+
+  const windowMs = new Date(form.ends_at) - new Date(form.starts_at)
+  const opensIn = new Date(form.starts_at) - new Date()
+
+  return (
+    <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+      <Clock className="size-3.5" />
+      <span>
+        Open for <strong className="text-foreground">{formatDuration(windowMs)}</strong>
+        {opensIn > 0 ? <>, opens in <strong className="text-foreground">{formatDuration(opensIn)}</strong></> : ", already open"}
+        {form.duration_minutes && <>. Each student gets {form.duration_minutes} min, or until the window closes — whichever comes first.</>}
+      </span>
+      <span>({localTimeZone})</span>
+    </p>
+  )
+}
+
+function QuizForm({ form, setForm, editingQuiz, saving, error, onCancel, onSubmit }) {
+  const hasQuestions = editingQuiz && questionCount(editingQuiz) > 0
+  const problems = scheduleProblems(form, {
+    isNew: !editingQuiz,
+    publishing: form.status === "published",
   })
+
+  return (
+    <AdminCard className="mb-8 p-6">
+      <form onSubmit={onSubmit} className="space-y-5">
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-bold">{editingQuiz ? "Edit quiz" : "New quiz"}</h2>
+          <button
+            type="button"
+            onClick={onCancel}
+            className="rounded-lg p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+            aria-label="Close form"
+          >
+            <X className="size-4" />
+          </button>
+        </div>
+
+        {!hasQuestions && (
+          <div className="flex gap-3 rounded-xl bg-orange-50 p-4 text-sm text-orange-900 ring-1 ring-orange-200 dark:bg-orange-500/10 dark:text-orange-200 dark:ring-orange-500/30">
+            <CircleAlert className="mt-0.5 size-4 shrink-0 text-orange-600" />
+            <div>
+              <p className="font-semibold">A quiz needs at least one question</p>
+              <p className="mt-0.5 text-orange-800/80 dark:text-orange-200/80">
+                {editingQuiz
+                  ? "This quiz has no questions yet, so it stays a draft. Add a question to publish it."
+                  : "Your quiz is saved as a draft. Next, you'll add its questions — once it has at least one, you can publish it."}
+              </p>
+            </div>
+          </div>
+        )}
+
+        {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
+
+        <div>
+          <label className="text-sm font-medium" htmlFor="title">Title</label>
+          <input
+            id="title"
+            required
+            placeholder="JavaScript Fundamentals"
+            value={form.title}
+            onChange={(e) => setForm({ ...form, title: e.target.value })}
+            className={adminInput}
+          />
+        </div>
+
+        <div>
+          <label className="text-sm font-medium" htmlFor="description">Description</label>
+          <textarea
+            id="description"
+            rows={2}
+            placeholder="What does this quiz cover?"
+            value={form.description}
+            onChange={(e) => setForm({ ...form, description: e.target.value })}
+            className={adminInput}
+          />
+        </div>
+
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <div>
+            <label className="text-sm font-medium" htmlFor="duration">Duration (minutes)</label>
+            <input
+              id="duration"
+              type="number"
+              min={1}
+              required
+              value={form.duration_minutes}
+              onChange={(e) => setForm({ ...form, duration_minutes: e.target.value })}
+              className={adminInput}
+            />
+          </div>
+          <div>
+            <label className="text-sm font-medium" htmlFor="starts_at">Starts at</label>
+            <input
+              id="starts_at"
+              type="datetime-local"
+              required
+              value={form.starts_at}
+              onChange={(e) => setForm({ ...form, starts_at: e.target.value })}
+              className={adminInput}
+            />
+          </div>
+          <div>
+            <label className="text-sm font-medium" htmlFor="ends_at">Ends at</label>
+            <input
+              id="ends_at"
+              type="datetime-local"
+              required
+              value={form.ends_at}
+              min={form.starts_at || undefined}
+              onChange={(e) => setForm({ ...form, ends_at: e.target.value })}
+              className={adminInput}
+            />
+          </div>
+        </div>
+
+        <ScheduleSummary form={form} problems={problems} />
+
+        {editingQuiz && (
+          <div>
+            <label className="text-sm font-medium" htmlFor="status">Status</label>
+            <select
+              id="status"
+              value={form.status}
+              onChange={(e) => setForm({ ...form, status: e.target.value })}
+              className={adminInput}
+            >
+              <option value="draft">Draft</option>
+              <option value="published" disabled={!hasQuestions}>
+                Published{hasQuestions ? "" : " (add a question first)"}
+              </option>
+            </select>
+          </div>
+        )}
+
+        <div className="flex justify-end gap-2">
+          <button type="button" onClick={onCancel} className={adminSecondaryButton}>
+            Cancel
+          </button>
+          <button type="submit" disabled={saving || problems.length > 0} className={adminPrimaryButton}>
+            {saving ? "Saving..." : editingQuiz ? "Save changes" : "Create & add questions"}
+          </button>
+        </div>
+      </form>
+    </AdminCard>
+  )
 }
 
 export default function AdminQuizzes() {
   const navigate = useNavigate()
+  const location = useLocation()
   const [quizzes, setQuizzes] = useState([])
   const [loading, setLoading] = useState(true)
   const [pageError, setPageError] = useState("")
-  // Fail-safe: assume not signed in as admin until loadQuizzes proves otherwise.
-  const [needsSignIn, setNeedsSignIn] = useState(true)
-  const [showSignInLink, setShowSignInLink] = useState(false)
 
-  const [showForm, setShowForm] = useState(false)
-  const [editingId, setEditingId] = useState(null)
+  const [showForm, setShowForm] = useState(Boolean(location.state?.openCreate))
+  const [editingQuiz, setEditingQuiz] = useState(null)
   const [form, setForm] = useState(emptyForm)
   const [formError, setFormError] = useState("")
   const [saving, setSaving] = useState(false)
+  const [togglingId, setTogglingId] = useState(null)
+  const now = useNow()
 
   async function loadQuizzes() {
     try {
       const data = await getQuizzes()
-      setQuizzes(data)
+      setQuizzes(Array.isArray(data) ? data : [])
       setPageError("")
-      setNeedsSignIn(false)
-      setShowSignInLink(false)
     } catch (err) {
-      // Any failure (including a network error) keeps New quiz/Edit/Delete
-      // disabled - admin access is only confirmed by a successful load.
-      setNeedsSignIn(true)
-      // Only an actual auth failure gets the "Sign in" link - a 500 or
-      // network error doesn't mean the user is logged out.
-      setShowSignInLink(err.status === 401 || err.status === 403)
       setPageError(
         err.status === 403
           ? "You're signed in, but this account isn't an admin."
-          : err.status === 401
-            ? "Please sign in as an admin to manage quizzes."
-            : err.message
+          : err.message || "Unable to load quizzes."
       )
     } finally {
       setLoading(false)
@@ -87,16 +271,14 @@ export default function AdminQuizzes() {
   }, [])
 
   function openCreateForm() {
-    if (needsSignIn) return
-    setEditingId(null)
+    setEditingQuiz(null)
     setForm(emptyForm)
     setFormError("")
     setShowForm(true)
   }
 
   function openEditForm(quiz) {
-    if (needsSignIn) return
-    setEditingId(quiz.id)
+    setEditingQuiz(quiz)
     setForm({
       title: quiz.title,
       description: quiz.description ?? "",
@@ -107,11 +289,12 @@ export default function AdminQuizzes() {
     })
     setFormError("")
     setShowForm(true)
+    window.scrollTo({ top: 0, behavior: "smooth" })
   }
 
   function closeForm() {
     setShowForm(false)
-    setEditingId(null)
+    setEditingQuiz(null)
     setFormError("")
   }
 
@@ -126,17 +309,18 @@ export default function AdminQuizzes() {
       duration_minutes: Number(form.duration_minutes),
       starts_at: form.starts_at ? new Date(form.starts_at).toISOString() : undefined,
       ends_at: form.ends_at ? new Date(form.ends_at).toISOString() : undefined,
-      status: form.status,
+      status: editingQuiz ? form.status : "draft",
     }
 
     try {
-      if (editingId) {
-        await updateQuiz(editingId, payload)
+      if (editingQuiz) {
+        await updateQuiz(editingQuiz.id, payload)
+        closeForm()
+        await loadQuizzes()
       } else {
-        await createQuiz(payload)
+        const created = await createQuiz(payload)
+        navigate(`/admin-panel/quizzes/${created.id}/questions`, { state: { justCreated: true } })
       }
-      closeForm()
-      await loadQuizzes()
     } catch (err) {
       setFormError(err.message)
     } finally {
@@ -144,8 +328,21 @@ export default function AdminQuizzes() {
     }
   }
 
+  async function handleTogglePublish(quiz) {
+    setTogglingId(quiz.id)
+    setPageError("")
+    try {
+      const status = quiz.status === "published" ? "draft" : "published"
+      await updateQuiz(quiz.id, quizToPayload(quiz, { status }))
+      await loadQuizzes()
+    } catch (err) {
+      setPageError(err.message)
+    } finally {
+      setTogglingId(null)
+    }
+  }
+
   async function handleDelete(id) {
-    if (needsSignIn) return
     if (!window.confirm("Delete this quiz? This cannot be undone.")) return
     try {
       await deleteQuiz(id)
@@ -155,248 +352,172 @@ export default function AdminQuizzes() {
     }
   }
 
-  async function handleSignOut() {
-    try {
-      await logout()
-    } catch {
-      // Ignore - we're navigating to /login either way.
-    } finally {
-      navigate("/login", { replace: true })
-    }
-  }
-
   return (
-    <div className="mx-auto max-w-4xl p-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-semibold text-foreground">Quizzes</h1>
-          <p className="text-sm text-muted-foreground">
-            Create, edit and remove quizzes for the question bank.
-          </p>
-        </div>
-        <div className="flex gap-2">
-          <Button
-            onClick={openCreateForm}
-            disabled={needsSignIn}
-            title={needsSignIn ? "Sign in as an admin to create a quiz" : undefined}
-          >
-            <Plus /> New quiz
-          </Button>
-          <Link to="/admin-panel/attempts" className={buttonVariants({ variant: "outline" })}><ListChecks /> Attempts</Link>
-          <Button variant="outline" onClick={handleSignOut}>
-            <LogOut /> Sign out
-          </Button>
-        </div>
-      </div>
+    <>
+      <AdminPageHeader
+        eyebrow="Quizzes"
+        title="Manage quizzes"
+        description="Create quizzes, add their questions, and control when they're active."
+        actions={
+          !showForm && (
+            <button type="button" onClick={openCreateForm} className={adminPrimaryButton}>
+              <Plus /> New quiz
+            </button>
+          )
+        }
+      />
 
       {pageError && (
-        <p className="flex items-center justify-between gap-3 rounded-md border border-destructive/20 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-          <span>{pageError}</span>
-          {showSignInLink && (
-            <Link to="/login" className="shrink-0 font-medium underline underline-offset-2">
-              Sign in
-            </Link>
-          )}
+        <p role="alert" className="mb-6 rounded-lg bg-destructive/10 px-4 py-3 text-sm text-destructive">
+          {pageError}
         </p>
       )}
 
       {showForm && (
-        <form
+        <QuizForm
+          form={form}
+          setForm={setForm}
+          editingQuiz={editingQuiz}
+          saving={saving}
+          error={formError}
+          onCancel={closeForm}
           onSubmit={handleSubmit}
-          className="space-y-4 rounded-lg border border-border bg-card p-5"
-        >
-          <div className="flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-foreground">
-              {editingId ? "Edit quiz" : "New quiz"}
-            </h2>
-            <button
-              type="button"
-              onClick={closeForm}
-              className="text-muted-foreground hover:text-foreground"
-              aria-label="Close form"
-            >
-              <X className="size-4" />
-            </button>
-          </div>
-
-          {formError && <p className="text-sm text-destructive">{formError}</p>}
-
-          <div className="space-y-1">
-            <label className="text-sm font-medium text-foreground" htmlFor="title">
-              Title
-            </label>
-            <input
-              id="title"
-              required
-              value={form.title}
-              onChange={(e) => setForm({ ...form, title: e.target.value })}
-              className="w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm text-foreground outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
-            />
-          </div>
-
-          <div className="space-y-1">
-            <label className="text-sm font-medium text-foreground" htmlFor="description">
-              Description
-            </label>
-            <textarea
-              id="description"
-              rows={2}
-              value={form.description}
-              onChange={(e) => setForm({ ...form, description: e.target.value })}
-              className="w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm text-foreground outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
-            />
-          </div>
-
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-            <div className="space-y-1">
-              <label className="text-sm font-medium text-foreground" htmlFor="duration">
-                Duration (minutes)
-              </label>
-              <input
-                id="duration"
-                type="number"
-                min={1}
-                required
-                value={form.duration_minutes}
-                onChange={(e) => setForm({ ...form, duration_minutes: e.target.value })}
-                className="w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm text-foreground outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
-              />
-            </div>
-
-            <div className="space-y-1">
-              <label className="text-sm font-medium text-foreground" htmlFor="starts_at">
-                Starts at
-              </label>
-              <input
-                id="starts_at"
-                type="datetime-local"
-                required
-                value={form.starts_at}
-                onChange={(e) => setForm({ ...form, starts_at: e.target.value })}
-                className="w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm text-foreground outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
-              />
-            </div>
-
-            <div className="space-y-1">
-              <label className="text-sm font-medium text-foreground" htmlFor="ends_at">
-                Ends at
-              </label>
-              <input
-                id="ends_at"
-                type="datetime-local"
-                required
-                value={form.ends_at}
-                onChange={(e) => setForm({ ...form, ends_at: e.target.value })}
-                className="w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm text-foreground outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
-              />
-            </div>
-          </div>
-
-          <div className="space-y-1">
-            <label className="text-sm font-medium text-foreground" htmlFor="status">
-              Status
-            </label>
-            <select
-              id="status"
-              value={form.status}
-              onChange={(e) => setForm({ ...form, status: e.target.value })}
-              className="w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm text-foreground outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
-            >
-              <option value="draft">Draft</option>
-              <option value="published">Published</option>
-            </select>
-          </div>
-
-          <div className="flex justify-end gap-2">
-            <Button type="button" variant="outline" onClick={closeForm}>
-              Cancel
-            </Button>
-            <Button type="submit" disabled={saving}>
-              {saving ? "Saving..." : editingId ? "Save changes" : "Create quiz"}
-            </Button>
-          </div>
-        </form>
+        />
       )}
 
-      <div className="overflow-x-auto rounded-lg border border-border">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-border bg-muted/50 text-left text-muted-foreground">
-              <th className="px-4 py-2 font-medium">Title</th>
-              <th className="px-4 py-2 font-medium">Status</th>
-              <th className="px-4 py-2 font-medium">Duration</th>
-              <th className="px-4 py-2 font-medium">Starts</th>
-              <th className="px-4 py-2 font-medium">Ends</th>
-              <th className="px-4 py-2 font-medium text-right">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {loading && (
-              <tr>
-                <td colSpan={6} className="px-4 py-6 text-center text-muted-foreground">
-                  Loading quizzes...
-                </td>
-              </tr>
-            )}
-
-            {!loading && quizzes.length === 0 && !pageError && (
-              <tr>
-                <td colSpan={6} className="px-4 py-6 text-center text-muted-foreground">
-                  No quizzes yet. Create one to get started.
-                </td>
-              </tr>
-            )}
-
-            {quizzes.map((quiz) => (
-              <tr key={quiz.id} className="border-b border-border last:border-0">
-                <td className="px-4 py-2 text-foreground">{quiz.title}</td>
-                <td className="px-4 py-2">
-                  <span
-                    className={
-                      quiz.status === "published"
-                        ? "rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary"
-                        : "rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground"
-                    }
-                  >
-                    {quiz.status}
-                  </span>
-                </td>
-                <td className="px-4 py-2 text-foreground">{quiz.duration_minutes} min</td>
-                <td className="px-4 py-2 text-foreground">{formatDate(quiz.starts_at)}</td>
-                <td className="px-4 py-2 text-foreground">{formatDate(quiz.ends_at)}</td>
-                <td className="px-4 py-2">
-                  <div className="flex justify-end gap-1">
-                    <Link
-                      to={`/admin-panel/quizzes/${quiz.id}/questions`}
-                      className={buttonVariants({ variant: "ghost", size: "icon-sm" })}
-                      aria-label={`Questions for ${quiz.title}`}
-                      title="Manage questions"
-                    >
-                      <ListChecks />
-                    </Link>
-                    <Button
-                      variant="ghost"
-                      size="icon-sm"
-                      onClick={() => openEditForm(quiz)}
-                      aria-label={`Edit ${quiz.title}`}
-                    >
-                      <Pencil />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon-sm"
-                      onClick={() => handleDelete(quiz.id)}
-                      aria-label={`Delete ${quiz.title}`}
-                    >
-                      <Trash2 />
-                    </Button>
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      <div className="mb-4 flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-muted-foreground">
+        <span className="flex items-center gap-1.5">
+          <span aria-hidden="true" className="size-2 rounded-full bg-green-500" /> Active — students can take it
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span aria-hidden="true" className="size-2 rounded-full bg-red-500" /> Inactive — draft, no questions, or ended
+        </span>
       </div>
-    </div>
+
+      <AdminCard className="overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-200 text-sm">
+            <thead>
+              <tr className="border-b border-border bg-muted/50 text-left text-muted-foreground">
+                <th className="px-5 py-3 font-medium">Quiz</th>
+                <th className="px-5 py-3 font-medium">Status</th>
+                <th className="px-5 py-3 font-medium">Questions</th>
+                <th className="px-5 py-3 font-medium">Window</th>
+                <th className="px-5 py-3 font-medium">Published</th>
+                <th className="px-5 py-3 text-right font-medium">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border">
+              {loading && (
+                <tr>
+                  <td colSpan={6} className="px-5 py-8 text-center text-muted-foreground">
+                    Loading quizzes...
+                  </td>
+                </tr>
+              )}
+
+              {!loading && quizzes.length === 0 && !pageError && (
+                <tr>
+                  <td colSpan={6} className="px-5 py-10 text-center text-muted-foreground">
+                    No quizzes yet. Create one to get started.
+                  </td>
+                </tr>
+              )}
+
+              {quizzes.map((quiz) => {
+                const count = questionCount(quiz)
+                return (
+                  <tr key={quiz.id} className="align-top">
+                    <td className="px-5 py-4">
+                      <p className="font-semibold text-foreground">{quiz.title}</p>
+                      <p className="mt-0.5 text-xs text-muted-foreground">
+                        {quiz.duration_minutes} min · {quiz._count?.invitations ?? 0} invited
+                      </p>
+                    </td>
+                    <td className="px-5 py-4">
+                      <QuizStatusBadge quiz={quiz} />
+                    </td>
+                    <td className="px-5 py-4">
+                      {count === 0 ? (
+                        <Link
+                          to={`/admin-panel/quizzes/${quiz.id}/questions`}
+                          className="inline-flex items-center gap-1 font-semibold text-red-600 hover:underline dark:text-red-400"
+                        >
+                          <Plus className="size-3.5" /> Add a question
+                        </Link>
+                      ) : (
+                        <span className="font-semibold">{count}</span>
+                      )}
+                    </td>
+                    <td className="px-5 py-4 text-xs text-muted-foreground">
+                      <p>{formatDateTime(quiz.starts_at)}</p>
+                      <p>→ {formatDateTime(quiz.ends_at)}</p>
+                      <WindowLabel quiz={quiz} now={now} />
+                    </td>
+                    <td className="px-5 py-4">
+                      <PublishSwitch
+                        quiz={quiz}
+                        busy={togglingId === quiz.id}
+                        onToggle={handleTogglePublish}
+                      />
+                    </td>
+                    <td className="px-5 py-4">
+                      <div className="flex justify-end gap-1">
+                        <Link
+                          to={`/admin-panel/quizzes/${quiz.id}/questions`}
+                          className={buttonVariants({ variant: "ghost", size: "icon-sm" })}
+                          aria-label={`Questions for ${quiz.title}`}
+                          title="Manage questions"
+                        >
+                          <ListChecks />
+                        </Link>
+                        {hasEnded(quiz, now) ? (
+                          <Button
+                            variant="ghost"
+                            size="icon-sm"
+                            disabled
+                            aria-label={`Invites closed for ${quiz.title}`}
+                            title="This quiz has ended — extend its end time to invite students"
+                          >
+                            <Mail />
+                          </Button>
+                        ) : (
+                          <Link
+                            to={`/admin-panel/quizzes/${quiz.id}/invites`}
+                            className={buttonVariants({ variant: "ghost", size: "icon-sm" })}
+                            aria-label={`Invite students to ${quiz.title}`}
+                            title="Invite students"
+                          >
+                            <Mail />
+                          </Link>
+                        )}
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          onClick={() => openEditForm(quiz)}
+                          aria-label={`Edit ${quiz.title}`}
+                          title="Edit quiz"
+                        >
+                          <Pencil />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          onClick={() => handleDelete(quiz.id)}
+                          aria-label={`Delete ${quiz.title}`}
+                          title="Delete quiz"
+                        >
+                          <Trash2 />
+                        </Button>
+                      </div>
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      </AdminCard>
+    </>
   )
 }

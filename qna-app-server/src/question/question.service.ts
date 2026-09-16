@@ -9,7 +9,7 @@ import {
   QuestionOptionInputDto
 } from "./dto/create-question.dto.js";
 import { UpdateQuestionDto } from "./dto/update-question.dto.js";
-import { QuestionType } from "../generated/prisma/enums.js";
+import { QuestionType, QuizStatus } from "../generated/prisma/enums.js";
 
 @Injectable()
 export class QuestionService {
@@ -49,6 +49,23 @@ export class QuestionService {
   private async assertQuizExists(quizId: string) {
     const quiz = await this.prisma.quiz.findUnique({ where: { id: quizId } });
     if (!quiz) throw new NotFoundException("Quiz not found");
+    return quiz;
+  }
+
+  // Changing questions while students may be mid-attempt would change what
+  // they're being graded on, so questions are locked while a quiz is live.
+  private async assertEditable(quizId: string) {
+    const quiz = await this.assertQuizExists(quizId);
+    const now = new Date();
+    if (
+      quiz.status === QuizStatus.published &&
+      quiz.starts_at <= now &&
+      now <= quiz.ends_at
+    ) {
+      throw new BadRequestException(
+        "This quiz is live right now, so its questions are locked. Unpublish it or wait until it closes to make changes."
+      );
+    }
   }
 
   private async findOwned(quizId: string, questionId: string) {
@@ -72,7 +89,7 @@ export class QuestionService {
   }
 
   async create(quizId: string, dto: CreateQuestionDto) {
-    await this.assertQuizExists(quizId);
+    await this.assertEditable(quizId);
     this.validateOptions(dto.type, dto.options);
 
     return this.prisma.question.create({
@@ -94,6 +111,7 @@ export class QuestionService {
 
   async update(quizId: string, questionId: string, dto: UpdateQuestionDto) {
     await this.findOwned(quizId, questionId);
+    await this.assertEditable(quizId);
     this.validateOptions(dto.type, dto.options);
 
     return this.prisma.$transaction(async (tx) => {
@@ -120,6 +138,16 @@ export class QuestionService {
 
   async remove(quizId: string, questionId: string) {
     await this.findOwned(quizId, questionId);
+    await this.assertEditable(quizId);
+    const quiz = await this.prisma.quiz.findUnique({
+      where: { id: quizId },
+      include: { _count: { select: { questions: true } } }
+    });
+    if (quiz?.status === QuizStatus.published && quiz._count.questions <= 1) {
+      throw new BadRequestException(
+        "A published quiz needs at least one question. Unpublish it before removing its last question."
+      );
+    }
     await this.prisma.question.delete({ where: { id: questionId } });
     return { message: "Question deleted successfully" };
   }

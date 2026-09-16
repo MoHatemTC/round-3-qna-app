@@ -35,6 +35,7 @@ export default function InviteEntry() {
 
   const messages = {
     invalid_link: "This invite link isn't valid. Double-check the link you were sent.",
+    expired_link: "This invite link has expired. Ask for a new invitation.",
     not_open_yet: "This quiz isn't open yet. Check back closer to the start time.",
     closed: "This quiz has closed and is no longer accepting responses.",
     already_submitted: "You've already submitted this quiz. Only one attempt is allowed.",

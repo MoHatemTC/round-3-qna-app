@@ -3,6 +3,8 @@ import {
   Controller,
   Delete,
   Get,
+  HttpCode,
+  HttpStatus,
   Param,
   Post,
   Put,
@@ -86,7 +88,27 @@ export class QuizController {
   }
 
   @Post(":id/invitations")
+  @ApiOperation({ summary: "Send bulk quiz invitations (admin only)" })
+  @ApiResponse({
+    status: 200,
+    description: "Invitations processed summary (sent, failed, skipped)"
+  })
+  @ApiResponse({ status: 400, description: "Validation failed" })
+  @ApiResponse({ status: 401, description: "Not logged in" })
+  @ApiResponse({ status: 403, description: "Logged in, but not an admin" })
+  @ApiResponse({ status: 404, description: "Quiz not found" })
+  @HttpCode(HttpStatus.OK)
   invite(@Param("id") id: string, @Body() dto: CreateInvitationDto) {
     return this.quizService.invite(id, dto);
+  }
+
+  @Get(":id/invitations")
+  @ApiOperation({ summary: "Get all invitations for a quiz (admin only)" })
+  @ApiResponse({ status: 200, description: "List of quiz invitations" })
+  @ApiResponse({ status: 401, description: "Not logged in" })
+  @ApiResponse({ status: 403, description: "Logged in, but not an admin" })
+  @ApiResponse({ status: 404, description: "Quiz not found" })
+  getQuizInvitations(@Param("id") id: string) {
+    return this.quizService.getQuizInvitations(id);
   }
 }
