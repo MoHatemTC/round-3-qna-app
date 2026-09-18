@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ForbiddenException,
   Injectable,
   NotFoundException
 } from "@nestjs/common";
@@ -9,7 +10,26 @@ import {
   QuestionOptionInputDto
 } from "./dto/create-question.dto.js";
 import { UpdateQuestionDto } from "./dto/update-question.dto.js";
-import { QuestionType, QuizStatus } from "../generated/prisma/enums.js";
+import {
+  AttemptStatus,
+  QuestionType,
+  QuizStatus,
+  Role
+} from "../generated/prisma/enums.js";
+import { questionProblem } from "./question-rules.js";
+
+// What a student may see of a question while taking a quiz. is_correct is
+// deliberately absent - it is never read from the database for this shape.
+export const attemptQuestionSelect = {
+  id: true,
+  type: true,
+  text: true,
+  points: true,
+  options: {
+    select: { id: true, text: true },
+    orderBy: { created_at: "asc" }
+  }
+} as const;
 
 @Injectable()
 export class QuestionService {
@@ -19,31 +39,8 @@ export class QuestionService {
     type: QuestionType,
     options: QuestionOptionInputDto[]
   ) {
-    const correctCount = options.filter((o) => o.is_correct).length;
-
-    if (type === QuestionType.mcq) {
-      if (options.length < 2) {
-        throw new BadRequestException(
-          "mcq questions need at least two options"
-        );
-      }
-      if (correctCount !== 1) {
-        throw new BadRequestException(
-          "mcq questions need exactly one correct option"
-        );
-      }
-    } else {
-      if (options.length !== 2) {
-        throw new BadRequestException(
-          "true_false questions need exactly two options"
-        );
-      }
-      if (correctCount !== 1) {
-        throw new BadRequestException(
-          "true_false questions need exactly one correct value"
-        );
-      }
-    }
+    const problem = questionProblem(type, options);
+    if (problem) throw new BadRequestException(problem);
   }
 
   private async assertQuizExists(quizId: string) {
@@ -84,6 +81,40 @@ export class QuestionService {
     return this.prisma.question.findMany({
       where: { quiz_id: quizId },
       include: { options: true },
+      orderBy: { created_at: "asc" }
+    });
+  }
+
+  // Question text, type and options for a quiz being attempted. Admins may
+  // preview any quiz; everyone else needs a running attempt on a published
+  // quiz, so questions can't be read ahead of starting the timer.
+  async findForAttempt(quizId: string, user: { id: string; role: Role }) {
+    const quiz = await this.assertQuizExists(quizId);
+    if (user.role !== Role.admin) {
+      if (quiz.status !== QuizStatus.published) {
+        throw new NotFoundException("Quiz not found");
+      }
+      const attempt = await this.prisma.attempt.findFirst({
+        where: {
+          quiz_id: quizId,
+          user_id: user.id,
+          status: AttemptStatus.in_progress
+        },
+        select: { id: true }
+      });
+      if (!attempt) {
+        throw new ForbiddenException(
+          "Start an attempt on this quiz before loading its questions"
+        );
+      }
+    }
+    return this.getAttemptQuestions(quizId);
+  }
+
+  getAttemptQuestions(quizId: string) {
+    return this.prisma.question.findMany({
+      where: { quiz_id: quizId },
+      select: attemptQuestionSelect,
       orderBy: { created_at: "asc" }
     });
   }

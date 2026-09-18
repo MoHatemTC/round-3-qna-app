@@ -5,11 +5,14 @@ import {
   createQuiz,
   deleteQuiz,
   getQuizzes,
+  publishQuiz,
+  unpublishQuiz,
   updateQuiz,
 } from "@/services/services"
 import { Button, buttonVariants } from "@/components/ui/button"
 import QuizStatusBadge from "@/components/admin/QuizStatusBadge"
 import PublishSwitch from "@/components/admin/PublishSwitch"
+import PublishStateBadge from "@/components/admin/PublishStateBadge"
 import {
   AdminCard,
   AdminPageHeader,
@@ -23,7 +26,6 @@ import {
   hasEnded,
   localTimeZone,
   questionCount,
-  quizToPayload,
   quizWindowState,
   scheduleProblems,
 } from "@/lib/quizStatus"
@@ -332,8 +334,8 @@ export default function AdminQuizzes() {
     setTogglingId(quiz.id)
     setPageError("")
     try {
-      const status = quiz.status === "published" ? "draft" : "published"
-      await updateQuiz(quiz.id, quizToPayload(quiz, { status }))
+      if (quiz.status === "published") await unpublishQuiz(quiz.id)
+      else await publishQuiz(quiz.id)
       await loadQuizzes()
     } catch (err) {
       setPageError(err.message)
@@ -403,7 +405,7 @@ export default function AdminQuizzes() {
                 <th className="px-5 py-3 font-medium">Status</th>
                 <th className="px-5 py-3 font-medium">Questions</th>
                 <th className="px-5 py-3 font-medium">Window</th>
-                <th className="px-5 py-3 font-medium">Published</th>
+                <th className="px-5 py-3 font-medium">Draft / Published</th>
                 <th className="px-5 py-3 text-right font-medium">Actions</th>
               </tr>
             </thead>
@@ -429,7 +431,10 @@ export default function AdminQuizzes() {
                 return (
                   <tr key={quiz.id} className="align-top">
                     <td className="px-5 py-4">
-                      <p className="font-semibold text-foreground">{quiz.title}</p>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="font-semibold text-foreground">{quiz.title}</p>
+                        <PublishStateBadge status={quiz.status} />
+                      </div>
                       <p className="mt-0.5 text-xs text-muted-foreground">
                         {quiz.duration_minutes} min · {quiz._count?.invitations ?? 0} invited
                       </p>
@@ -455,11 +460,18 @@ export default function AdminQuizzes() {
                       <WindowLabel quiz={quiz} now={now} />
                     </td>
                     <td className="px-5 py-4">
-                      <PublishSwitch
-                        quiz={quiz}
-                        busy={togglingId === quiz.id}
-                        onToggle={handleTogglePublish}
-                      />
+                      <div className="flex items-center gap-2">
+                        <PublishSwitch
+                          quiz={quiz}
+                          busy={togglingId === quiz.id}
+                          onToggle={handleTogglePublish}
+                        />
+                        <span className="text-xs font-medium text-muted-foreground">
+                          {togglingId === quiz.id
+                            ? "Saving..."
+                            : quiz.status === "published" ? "Published" : "Draft"}
+                        </span>
+                      </div>
                     </td>
                     <td className="px-5 py-4">
                       <div className="flex justify-end gap-1">
