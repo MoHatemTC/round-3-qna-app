@@ -2,8 +2,8 @@ import { useEffect, useState } from "react"
 import { Link, useLocation, useParams } from "react-router"
 import { ArrowLeft, Check, CircleAlert, Lock, Pencil, Plus, Trash2, X } from "lucide-react"
 import { api } from "@/lib/api"
-import { updateQuiz } from "@/services/services"
-import { formatDateTime, isQuizLive, quizToPayload } from "@/lib/quizStatus"
+import { publishQuiz, unpublishQuiz } from "@/services/services"
+import { formatDateTime, isQuizLive } from "@/lib/quizStatus"
 import { useNow } from "@/hooks/useNow"
 import { Button } from "@/components/ui/button"
 import QuizStatusBadge from "@/components/admin/QuizStatusBadge"
@@ -376,8 +376,8 @@ export default function AdminQuizQuestions() {
     setPublishing(true)
     setPageError("")
     try {
-      const status = quiz.status === "published" ? "draft" : "published"
-      await updateQuiz(quiz.id, quizToPayload(quiz, { status }))
+      if (quiz.status === "published") await unpublishQuiz(quiz.id)
+      else await publishQuiz(quiz.id)
       await load()
     } catch (err) {
       setPageError(err.message)

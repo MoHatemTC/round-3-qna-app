@@ -24,6 +24,22 @@ export function deleteQuiz(id) {
   return api.delete(`/admin/quizzes/${id}`)
 }
 
+export function publishQuiz(id) {
+  return api.post(`/admin/quizzes/${id}/publish`, {})
+}
+
+export function unpublishQuiz(id) {
+  return api.post(`/admin/quizzes/${id}/unpublish`, {})
+}
+
+export function getQuizInvitations(id) {
+  return api.get(`/admin/quizzes/${id}/invitations`)
+}
+
+export function sendQuizInvitations(id, emails) {
+  return api.post(`/admin/quizzes/${id}/invitations`, { emails, userIds: [] })
+}
+
 export function logout() {
   return api.post("/auth/logout", {})
 }
