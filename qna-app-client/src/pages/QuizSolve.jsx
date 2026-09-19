@@ -41,6 +41,7 @@ export default function QuizSolve() {
   const questions = state?.questions ?? [];
   const isExpired = remainingSeconds <= 0;
 
+  // Countdown tick — recomputed from the server's end time every second.
   useEffect(() => {
     if (!state?.endTime || submittedRef.current) return undefined;
     const timer = window.setInterval(() => {
@@ -49,6 +50,21 @@ export default function QuizSolve() {
       if (seconds === 0) window.clearInterval(timer);
     }, 1000);
     return () => window.clearInterval(timer);
+  }, [state?.endTime]);
+
+  // Page Visibility API — recompute remaining time the moment the tab becomes
+  // visible again, so a throttled/backgrounded interval doesn't delay
+  // detecting that the deadline already passed.
+  useEffect(() => {
+    if (!state?.endTime || submittedRef.current) return undefined;
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") {
+        const seconds = Math.max(0, Math.ceil((new Date(state.endTime).getTime() - Date.now()) / 1000));
+        setRemainingSeconds(seconds);
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibility);
+    return () => document.removeEventListener("visibilitychange", handleVisibility);
   }, [state?.endTime]);
 
   const payload = questions.flatMap((question) => {
@@ -61,11 +77,6 @@ export default function QuizSolve() {
 
   const handleSubmit = async () => {
     if (submitting || submittedRef.current || !attemptId) return;
-
-    if (payload.length === 0) {
-      setError("Select at least one answer before submitting.");
-      return;
-    }
 
     setSubmitting(true);
     setError("");
@@ -105,9 +116,11 @@ export default function QuizSolve() {
 
   const submitWhenExpired = useEffectEvent(handleSubmit);
 
+  // Auto-submit at zero — fires regardless of whether anything was answered,
+  // so blank attempts are still recorded rather than silently dropped.
   useEffect(() => {
-    if (isExpired && !submittedRef.current && payload.length) submitWhenExpired();
-  }, [isExpired, payload.length]);
+    if (isExpired && !submittedRef.current) submitWhenExpired();
+  }, [isExpired]);
 
   if (!attemptId) {
     return (
@@ -132,6 +145,7 @@ export default function QuizSolve() {
   const pageQuestionIds = new Set(pageQuestions.map((question) => question.id));
   const isLastPage = page === totalPages - 1;
   const unansweredOnPage = pageQuestions.filter((question) => answers[question.id] === undefined).length;
+  const isWarning = !isExpired && remainingSeconds <= 120;
 
   function goToNextPage() {
     if (isLastPage) return;
@@ -158,6 +172,13 @@ export default function QuizSolve() {
             onJump={scrollToQuestion}
           />
         </div>
+
+        {isWarning && (
+          <div role="status" className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+            Less than 2 minutes remaining — your answers will auto-submit at zero.
+          </div>
+        )}
+
         {error && <p role="alert" className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
 
         <h2
