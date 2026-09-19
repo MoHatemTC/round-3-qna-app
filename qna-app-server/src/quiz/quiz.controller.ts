@@ -90,6 +90,35 @@ export class QuizController {
     return this.quizService.remove(id);
   }
 
+  @Post(":id/publish")
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary:
+      "Publish a quiz (admin only). Refused unless it has valid questions and has not ended."
+  })
+  @ApiResponse({ status: 200, description: "Quiz published", type: QuizDto })
+  @ApiResponse({
+    status: 400,
+    description: "No questions, an invalid question, or end time has passed"
+  })
+  @ApiResponse({ status: 401, description: "Not logged in" })
+  @ApiResponse({ status: 403, description: "Logged in, but not an admin" })
+  @ApiResponse({ status: 404, description: "Quiz not found" })
+  publish(@Param("id") id: string) {
+    return this.quizService.publish(id);
+  }
+
+  @Post(":id/unpublish")
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: "Move a quiz back to draft (admin only)" })
+  @ApiResponse({ status: 200, description: "Quiz unpublished", type: QuizDto })
+  @ApiResponse({ status: 401, description: "Not logged in" })
+  @ApiResponse({ status: 403, description: "Logged in, but not an admin" })
+  @ApiResponse({ status: 404, description: "Quiz not found" })
+  unpublish(@Param("id") id: string) {
+    return this.quizService.unpublish(id);
+  }
+
   @Post(":id/invitations")
   @ApiOperation({ summary: "Send bulk quiz invitations (admin only)" })
   @ApiResponse({

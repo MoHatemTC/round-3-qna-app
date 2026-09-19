@@ -10,6 +10,7 @@ import { UpdateQuizDto } from "./dto/update-quiz.dto.js";
 import { CreateInvitationDto } from "./dto/create-invitation.dto.js";
 import { NotificationService } from "../notifications/notifications.service.js";
 import { AttemptStatus, QuizStatus } from "../generated/prisma/enums.js";
+import { questionProblem } from "../question/question-rules.js";
 
 // Counts the admin CMS needs to show a quiz's activation status.
 const quizCounts = {
@@ -84,11 +85,41 @@ export class QuizService {
     return quiz;
   }
 
+  // Refuses publishing unless the quiz has at least one question and every
+  // question is well-formed (right option count, exactly one correct answer).
+  private async assertPublishable(quizId: string) {
+    const questions = await this.prisma.question.findMany({
+      where: { quiz_id: quizId },
+      select: {
+        text: true,
+        type: true,
+        options: { select: { is_correct: true } }
+      },
+      orderBy: { created_at: "asc" }
+    });
+    if (questions.length === 0) {
+      throw new BadRequestException(NEEDS_QUESTION_MESSAGE);
+    }
+    const invalid = questions
+      .map((question, index) => ({
+        index,
+        problem: questionProblem(question.type, question.options)
+      }))
+      .filter((item) => item.problem);
+    if (invalid.length) {
+      throw new BadRequestException(
+        `Fix these questions before publishing: ${invalid
+          .map((item) => `question ${item.index + 1} (${item.problem})`)
+          .join("; ")}`
+      );
+    }
+  }
+
   async update(id: string, dto: UpdateQuizDto) {
     const quiz = await this.findOne(id);
     const publishing = dto.status === QuizStatus.published;
-    if (publishing && quiz._count.questions === 0) {
-      throw new BadRequestException(NEEDS_QUESTION_MESSAGE);
+    if (publishing && quiz.status !== QuizStatus.published) {
+      await this.assertPublishable(id);
     }
     this.validateSchedule(dto, publishing);
     return this.prisma.quiz.update({
@@ -101,6 +132,32 @@ export class QuizService {
         ends_at: new Date(dto.ends_at),
         status: dto.status
       },
+      include: quizCounts
+    });
+  }
+
+  async publish(id: string) {
+    const quiz = await this.findOne(id);
+    if (quiz.status === QuizStatus.published) return quiz;
+    await this.assertPublishable(id);
+    if (quiz.ends_at <= new Date()) {
+      throw new BadRequestException(
+        "This quiz's end time has already passed. Set a later end time before publishing."
+      );
+    }
+    return this.prisma.quiz.update({
+      where: { id },
+      data: { status: QuizStatus.published },
+      include: quizCounts
+    });
+  }
+
+  async unpublish(id: string) {
+    const quiz = await this.findOne(id);
+    if (quiz.status === QuizStatus.draft) return quiz;
+    return this.prisma.quiz.update({
+      where: { id },
+      data: { status: QuizStatus.draft },
       include: quizCounts
     });
   }

@@ -88,16 +88,3 @@ export function scheduleProblems({ starts_at, ends_at, duration_minutes }, { isN
   }
   return problems
 }
-
-// PUT /admin/quizzes/:id replaces the whole quiz, so status changes resend every field.
-export function quizToPayload(quiz, overrides = {}) {
-  return {
-    title: quiz.title,
-    description: quiz.description || undefined,
-    duration_minutes: quiz.duration_minutes,
-    starts_at: new Date(quiz.starts_at).toISOString(),
-    ends_at: new Date(quiz.ends_at).toISOString(),
-    status: quiz.status,
-    ...overrides,
-  }
-}

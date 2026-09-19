@@ -33,3 +33,30 @@ export class QuestionDto {
   @ApiProperty({ type: [QuestionOptionDto] })
   options!: QuestionOptionDto[];
 }
+
+// The student-facing shape from GET /quizzes/:id/questions/for-attempt.
+// There is intentionally no is_correct field anywhere in it.
+export class AttemptQuestionOptionDto {
+  @ApiProperty({ example: "b3f1c2b0-9c3a-4b1e-8a2a-6b6f9b6b1a10" })
+  id!: string;
+
+  @ApiProperty({ example: "Paris" })
+  text!: string;
+}
+
+export class AttemptQuestionDto {
+  @ApiProperty({ example: "b3f1c2b0-9c3a-4b1e-8a2a-6b6f9b6b1a10" })
+  id!: string;
+
+  @ApiProperty({ enum: QuestionType, example: QuestionType.mcq })
+  type!: QuestionType;
+
+  @ApiProperty({ example: "What is the capital of France?" })
+  text!: string;
+
+  @ApiProperty({ example: 1 })
+  points!: number;
+
+  @ApiProperty({ type: [AttemptQuestionOptionDto] })
+  options!: AttemptQuestionOptionDto[];
+}

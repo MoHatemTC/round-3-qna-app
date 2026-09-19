@@ -14,23 +14,19 @@ import {
   computeAttemptEndTime,
   finalizeExpiredAttempts
 } from "./attempt-timing.js";
+import { QuestionService } from "../question/question.service.js";
+import { AnswerKeyService } from "../question/answer-key.service.js";
 
 @Injectable()
 export class AttemptService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private questionService: QuestionService,
+    private answerKeyService: AnswerKeyService
+  ) {}
 
   private getStudentQuestions(quizId: string) {
-    return this.prisma.question.findMany({
-      where: { quiz_id: quizId },
-      select: {
-        id: true,
-        type: true,
-        text: true,
-        points: true,
-        options: { select: { id: true, text: true } }
-      },
-      orderBy: { created_at: "asc" }
-    });
+    return this.questionService.getAttemptQuestions(quizId);
   }
 
   private computeEndTime(
@@ -195,13 +191,10 @@ export class AttemptService {
       now > endTime ? AttemptStatus.auto_submitted : AttemptStatus.submitted;
     const submittedAt = now > endTime ? endTime : now;
 
-    const questions = await this.prisma.question.findMany({
-      where: { quiz_id: attempt.quiz_id },
-      include: { options: true }
-    });
-    const questionMap = new Map(
-      questions.map((question) => [question.id, question])
+    const questionMap = await this.answerKeyService.getAnswerKey(
+      attempt.quiz_id
     );
+    const questions = [...questionMap.values()];
     const scoredAnswers = dto.answers.map((answer) => {
       const question = questionMap.get(answer.question_id);
       if (!question) {
