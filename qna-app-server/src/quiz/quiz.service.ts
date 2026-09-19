@@ -11,6 +11,7 @@ import { CreateInvitationDto } from "./dto/create-invitation.dto.js";
 import { NotificationService } from "../notifications/notifications.service.js";
 import { AttemptStatus, QuizStatus } from "../generated/prisma/enums.js";
 import { questionProblem } from "../question/question-rules.js";
+import type { StudentQuizStatus } from "./types/student-quiz-status.js";
 
 // Counts the admin CMS needs to show a quiz's activation status.
 const quizCounts = {
@@ -339,7 +340,7 @@ export class QuizService {
     };
   }
 
-  async getQuizStudents(quizId: string, status?: AttemptStatus) {
+  async getQuizStudents(quizId: string, status?: StudentQuizStatus) {
     await this.findOne(quizId);
 
     const [invitations, attempts] = await Promise.all([
@@ -352,10 +353,7 @@ export class QuizService {
         orderBy: { created_at: "desc" }
       }),
       this.prisma.attempt.findMany({
-        where: {
-          quiz_id: quizId,
-          ...(status ? { status } : {})
-        },
+        where: { quiz_id: quizId },
         select: {
           user_id: true,
           status: true,

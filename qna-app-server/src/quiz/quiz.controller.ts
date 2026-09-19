@@ -24,7 +24,9 @@ import { CreateQuizDto } from "./dto/create-quiz.dto.js";
 import { UpdateQuizDto } from "./dto/update-quiz.dto.js";
 import { QuizDto } from "./dto/quiz.dto.js";
 import { CreateInvitationDto } from "./dto/create-invitation.dto.js";
-import { AttemptStatus } from "../generated/prisma/enums.js";
+import {
+  StudentQuizStatus
+} from "./types/student-quiz-status.js";
 
 // Auth/role protection is wired in AppModule.configure() via the RequireAuth
 // and RequireRole("admin") middleware, applied to every route on this controller.
@@ -164,8 +166,8 @@ export class QuizController {
   @ApiResponse({ status: 404, description: "Quiz not found" })
   getQuizStudents(
     @Param("id") id: string,
-    @Query("status", new ParseEnumPipe(AttemptStatus, { optional: true }))
-    status?: AttemptStatus
+    @Query("status", new ParseEnumPipe(StudentQuizStatus, { optional: true }))
+    status?: StudentQuizStatus
   ) {
     return this.quizService.getQuizStudents(id, status);
   }
