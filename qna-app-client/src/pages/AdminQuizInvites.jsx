@@ -1,18 +1,20 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router';
-import { ArrowLeft, Mail } from 'lucide-react';
+import { ArrowLeft, Mail, Plus, X } from 'lucide-react';
 import { getQuiz, getQuizInvitations, sendQuizInvitations } from '@/services/services';
 import QuizStatusBadge from '@/components/admin/QuizStatusBadge';
 import PublishStateBadge from '@/components/admin/PublishStateBadge';
 import InvitationTable from '@/components/admin/InvitationTable';
+import { Badge } from '@/components/ui/badge';
 import { formatDateTime, hasEnded } from '@/lib/quizStatus';
 import { useNow } from '@/hooks/useNow';
-import { AdminCard, AdminPageHeader, adminInput, adminPrimaryButton } from '@/components/admin/AdminLayout';
+import { AdminCard, AdminPageHeader, adminInput, adminPrimaryButton, adminSecondaryButton } from '@/components/admin/AdminLayout';
 
 export default function AdminQuizInvites() {
     const { quizId } = useParams();
     const [quiz, setQuiz] = useState(null);
     const [email, setEmail] = useState('');
+    const [emails, setEmails] = useState([]);
     const [loading, setLoading] = useState(false);
     const [message, setMessage] = useState('');
     const [error, setError] = useState('');
@@ -44,15 +46,44 @@ export default function AdminQuizInvites() {
         loadInvitations();
     }, [quizId, loadInvitations]);
 
+    const handleAddEmail = () => {
+        const nextEmail = email.trim();
+        if (!nextEmail) {
+            setError('Enter a student email address to add.');
+            return;
+        }
+        if (emails.some((existingEmail) => existingEmail.toLowerCase() === nextEmail.toLowerCase())) {
+            setError('That email address has already been added.');
+            return;
+        }
+
+        setEmails((currentEmails) => [...currentEmails, nextEmail]);
+        setEmail('');
+        setError('');
+    };
+
+    const handleEmailKeyDown = (e) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            handleAddEmail();
+        }
+    };
+
     const handleSendInvitation = async (e) => {
         e.preventDefault();
+        if (emails.length === 0) {
+            setError('Add at least one student email before sending invitations.');
+            return;
+        }
+
         setLoading(true);
         setMessage('');
         setError('');
 
         try {
-            const data = await sendQuizInvitations(quizId, [email]);
+            const data = await sendQuizInvitations(quizId, emails);
             setMessage(`Invitation processed successfully! Sent: ${data.sent}, Failed: ${data.failed}, Skipped: ${data.skipped}`);
+            setEmails([]);
             setEmail('');
             await loadInvitations();
         } catch (err) {
@@ -101,19 +132,42 @@ export default function AdminQuizInvites() {
                 <form onSubmit={handleSendInvitation} className="space-y-4">
                     <div>
                         <label className="text-sm font-medium" htmlFor="invite-email">Student email</label>
-                        <input
-                            id="invite-email"
-                            type="email"
-                            value={email}
-                            onChange={(e) => setEmail(e.target.value)}
-                            placeholder="student@school.edu"
-                            required
-                            className={adminInput}
-                        />
+                        <div className="flex items-end gap-2">
+                            <input
+                                id="invite-email"
+                                type="email"
+                                value={email}
+                                onChange={(e) => setEmail(e.target.value)}
+                                onKeyDown={handleEmailKeyDown}
+                                placeholder="student@school.edu"
+                                className={adminInput}
+                            />
+                            <button type="button" onClick={handleAddEmail} disabled={loading || ended || isDraft} className={`${adminSecondaryButton} shrink-0`}>
+                                <Plus /> Add
+                            </button>
+                        </div>
                     </div>
 
-                    <button type="submit" disabled={loading || ended || isDraft} className={adminPrimaryButton}>
-                        <Mail /> {loading ? 'Sending...' : 'Send invitation'}
+                    {emails.length > 0 && (
+                        <div className="flex flex-wrap gap-2" aria-label="Students to invite">
+                            {emails.map((studentEmail) => (
+                                <Badge key={studentEmail} variant="secondary" className="h-auto py-1 pl-3 pr-1">
+                                    {studentEmail}
+                                    <button
+                                        type="button"
+                                        onClick={() => setEmails((currentEmails) => currentEmails.filter((emailToRemove) => emailToRemove !== studentEmail))}
+                                        aria-label={`Remove ${studentEmail}`}
+                                        className="rounded-full p-0.5 hover:bg-foreground/10"
+                                    >
+                                        <X />
+                                    </button>
+                                </Badge>
+                            ))}
+                        </div>
+                    )}
+
+                    <button type="submit" disabled={loading || ended || isDraft || emails.length === 0} className={adminPrimaryButton}>
+                        <Mail /> {loading ? 'Sending...' : 'Send all invitations'}
                     </button>
                 </form>
 

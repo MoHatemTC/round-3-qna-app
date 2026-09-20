@@ -9,7 +9,12 @@ import { CreateQuizDto } from "./dto/create-quiz.dto.js";
 import { UpdateQuizDto } from "./dto/update-quiz.dto.js";
 import { CreateInvitationDto } from "./dto/create-invitation.dto.js";
 import { NotificationService } from "../notifications/notifications.service.js";
-import { AttemptStatus, QuizStatus } from "../generated/prisma/enums.js";
+import {
+  AttemptStatus,
+  EmailStatus,
+  EmailType,
+  QuizStatus
+} from "../generated/prisma/enums.js";
 import { questionProblem } from "../question/question-rules.js";
 import type { StudentQuizStatus } from "./types/student-quiz-status.js";
 
@@ -169,6 +174,20 @@ export class QuizService {
     return { message: "Quiz deleted successfully" };
   }
 
+  private async recordFailedInvitationEmail(
+    recipient: string,
+    errorMessage: string
+  ) {
+    await this.prisma.emailDeliveryLog.create({
+      data: {
+        type: EmailType.invitation,
+        recipient,
+        status: EmailStatus.failed,
+        error_message: errorMessage
+      }
+    });
+  }
+
   async invite(id: string, dto: CreateInvitationDto) {
     const quiz = await this.findOne(id);
     if (quiz.ends_at <= new Date()) {
@@ -206,6 +225,7 @@ export class QuizService {
     for (const email of uniqueUsersEmail) {
       if (!emailRegex.test(email)) {
         failedCount++;
+        await this.recordFailedInvitationEmail(email, "Invalid email address");
         continue;
       }
       let invitationId: string | undefined;
@@ -266,6 +286,11 @@ export class QuizService {
             where: { id: invitationId },
             data: { status: "failed" }
           });
+        } else {
+          await this.recordFailedInvitationEmail(
+            email,
+            error instanceof Error ? error.message : "Unknown error occurred"
+          );
         }
       }
     }
