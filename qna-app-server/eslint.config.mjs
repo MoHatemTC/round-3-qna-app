@@ -25,6 +25,20 @@ export default tseslint.config(
     },
   },
   {
+    // Test doubles are untyped by nature - fake Prisma clients, exceptions
+    // inspected as `any`. The type-aware "unsafe" rules flag every one of
+    // those without catching a real defect.
+    files: ['**/*.spec.ts', 'src/testing/**/*.ts'],
+    rules: {
+      '@typescript-eslint/no-unsafe-assignment': 'off',
+      '@typescript-eslint/no-unsafe-member-access': 'off',
+      '@typescript-eslint/no-unsafe-call': 'off',
+      '@typescript-eslint/no-unsafe-return': 'off',
+      '@typescript-eslint/no-unnecessary-type-assertion': 'off',
+      '@typescript-eslint/unbound-method': 'off',
+    },
+  },
+  {
     rules: {
       '@typescript-eslint/no-explicit-any': 'off',
       '@typescript-eslint/no-floating-promises': 'warn',

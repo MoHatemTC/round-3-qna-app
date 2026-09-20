@@ -1,0 +1,12 @@
+{
+  // Jest runs on CommonJS, while the app itself is ESM ("type": "module" with
+  // .js import specifiers). Compile the tests down to CJS; jest's
+  // moduleNameMapper strips the .js suffix when resolving those imports.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "resolvePackageJsonExports": false,
+    "types": ["jest", "node"]
+  }
+}
