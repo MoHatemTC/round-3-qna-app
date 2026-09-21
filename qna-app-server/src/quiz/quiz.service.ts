@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   Injectable,
+  Logger,
   NotFoundException
 } from "@nestjs/common";
 import { createHash, randomBytes } from "node:crypto";
@@ -28,6 +29,8 @@ const NEEDS_QUESTION_MESSAGE =
 
 @Injectable()
 export class QuizService {
+  private readonly logger = new Logger(QuizService.name);
+
   constructor(
     private prisma: PrismaService,
     private notifications: NotificationService
@@ -175,17 +178,27 @@ export class QuizService {
   }
 
   private async recordFailedInvitationEmail(
+    quizId: string,
     recipient: string,
     errorMessage: string
   ) {
-    await this.prisma.emailDeliveryLog.create({
-      data: {
-        type: EmailType.invitation,
-        recipient,
-        status: EmailStatus.failed,
-        error_message: errorMessage
-      }
-    });
+    try {
+      await this.prisma.emailDeliveryLog.create({
+        data: {
+          type: EmailType.invitation,
+          recipient,
+          related_id: quizId,
+          status: EmailStatus.failed,
+          error_message: errorMessage
+        }
+      });
+    } catch (error) {
+      this.logger.warn(
+        `Failed to record invitation email failure for ${recipient}: ${
+          error instanceof Error ? error.message : "Unknown error occurred"
+        }`
+      );
+    }
   }
 
   async invite(id: string, dto: CreateInvitationDto) {
@@ -221,11 +234,14 @@ export class QuizService {
     let sentCount = 0,
       failedCount = 0,
       skippedCount = 0;
+    const failedEmails: { email: string; reason: string }[] = [];
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     for (const email of uniqueUsersEmail) {
       if (!emailRegex.test(email)) {
+        const reason = "Invalid email address";
         failedCount++;
-        await this.recordFailedInvitationEmail(email, "Invalid email address");
+        failedEmails.push({ email, reason });
+        await this.recordFailedInvitationEmail(id, email, reason);
         continue;
       }
       let invitationId: string | undefined;
@@ -281,16 +297,16 @@ export class QuizService {
         sentCount++;
       } catch (error) {
         failedCount++;
+        const reason =
+          error instanceof Error ? error.message : "Unknown error occurred";
+        failedEmails.push({ email, reason });
         if (invitationId) {
           await this.prisma.quizInvitation.update({
             where: { id: invitationId },
             data: { status: "failed" }
           });
         } else {
-          await this.recordFailedInvitationEmail(
-            email,
-            error instanceof Error ? error.message : "Unknown error occurred"
-          );
+          await this.recordFailedInvitationEmail(id, email, reason);
         }
       }
     }
@@ -298,7 +314,8 @@ export class QuizService {
     return {
       sent: sentCount,
       failed: failedCount,
-      skipped: skippedCount
+      skipped: skippedCount,
+      failedEmails
     };
   }
 

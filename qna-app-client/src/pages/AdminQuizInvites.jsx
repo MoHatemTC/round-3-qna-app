@@ -15,6 +15,7 @@ export default function AdminQuizInvites() {
     const [quiz, setQuiz] = useState(null);
     const [email, setEmail] = useState('');
     const [emails, setEmails] = useState([]);
+    const [failedEmailReasons, setFailedEmailReasons] = useState({});
     const [loading, setLoading] = useState(false);
     const [message, setMessage] = useState('');
     const [error, setError] = useState('');
@@ -46,20 +47,50 @@ export default function AdminQuizInvites() {
         loadInvitations();
     }, [quizId, loadInvitations]);
 
+    const addEmailValues = (value, currentEmails) => {
+        const values = value.split(/[,;\s]+/).map((valueToAdd) => valueToAdd.trim()).filter(Boolean);
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        const nextEmails = [...currentEmails];
+        const invalidEmails = [];
+        const duplicateEmails = [];
+
+        values.forEach((valueToAdd) => {
+            const normalizedEmail = valueToAdd.toLowerCase();
+            if (!emailRegex.test(valueToAdd)) {
+                invalidEmails.push(valueToAdd);
+            } else if (nextEmails.some((existingEmail) => existingEmail.toLowerCase() === normalizedEmail)) {
+                duplicateEmails.push(valueToAdd);
+            } else {
+                nextEmails.push(valueToAdd);
+            }
+        });
+
+        return {
+            emails: nextEmails,
+            error: invalidEmails.length
+                ? `Invalid email address${invalidEmails.length > 1 ? 'es' : ''}: ${invalidEmails.join(', ')}`
+                : duplicateEmails.length
+                    ? `Already added: ${duplicateEmails.join(', ')}`
+                    : ''
+        };
+    };
+
+    const addEmailInput = (value) => {
+        const result = addEmailValues(value, emails);
+        setEmails(result.emails);
+        setError(result.error);
+        if (!result.error || result.emails.length > emails.length) {
+            setEmail('');
+        }
+        return result;
+    };
+
     const handleAddEmail = () => {
-        const nextEmail = email.trim();
-        if (!nextEmail) {
+        if (!email.trim()) {
             setError('Enter a student email address to add.');
             return;
         }
-        if (emails.some((existingEmail) => existingEmail.toLowerCase() === nextEmail.toLowerCase())) {
-            setError('That email address has already been added.');
-            return;
-        }
-
-        setEmails((currentEmails) => [...currentEmails, nextEmail]);
-        setEmail('');
-        setError('');
+        addEmailInput(email);
     };
 
     const handleEmailKeyDown = (e) => {
@@ -69,22 +100,41 @@ export default function AdminQuizInvites() {
         }
     };
 
+    const handleEmailPaste = (e) => {
+        const pastedValue = e.clipboardData.getData('text');
+        if (/[;,\s]/.test(pastedValue)) {
+            e.preventDefault();
+            addEmailInput(pastedValue);
+        }
+    };
+
     const handleSendInvitation = async (e) => {
         e.preventDefault();
-        if (emails.length === 0) {
+        const result = email.trim() ? addEmailValues(email, emails) : { emails, error: '' };
+        if (result.error) {
+            setEmails(result.emails);
+            setError(result.error);
+            return;
+        }
+        if (result.emails.length === 0) {
             setError('Add at least one student email before sending invitations.');
             return;
         }
 
+        setEmails(result.emails);
+        setEmail('');
         setLoading(true);
         setMessage('');
         setError('');
 
         try {
-            const data = await sendQuizInvitations(quizId, emails);
+            const data = await sendQuizInvitations(quizId, result.emails);
             setMessage(`Invitation processed successfully! Sent: ${data.sent}, Failed: ${data.failed}, Skipped: ${data.skipped}`);
-            setEmails([]);
-            setEmail('');
+            const nextFailedEmailReasons = Object.fromEntries(
+                (data.failedEmails ?? []).map(({ email: failedEmail, reason }) => [failedEmail, reason])
+            );
+            setEmails(data.failedEmails?.map(({ email: failedEmail }) => failedEmail) ?? []);
+            setFailedEmailReasons(nextFailedEmailReasons);
             await loadInvitations();
         } catch (err) {
             setError(err.message || 'Something went wrong');
@@ -139,6 +189,7 @@ export default function AdminQuizInvites() {
                                 value={email}
                                 onChange={(e) => setEmail(e.target.value)}
                                 onKeyDown={handleEmailKeyDown}
+                                onPaste={handleEmailPaste}
                                 placeholder="student@school.edu"
                                 className={adminInput}
                             />
@@ -153,6 +204,7 @@ export default function AdminQuizInvites() {
                             {emails.map((studentEmail) => (
                                 <Badge key={studentEmail} variant="secondary" className="h-auto py-1 pl-3 pr-1">
                                     {studentEmail}
+                                    {failedEmailReasons[studentEmail] && <span className="ml-2 text-destructive">({failedEmailReasons[studentEmail]})</span>}
                                     <button
                                         type="button"
                                         onClick={() => setEmails((currentEmails) => currentEmails.filter((emailToRemove) => emailToRemove !== studentEmail))}
@@ -166,7 +218,7 @@ export default function AdminQuizInvites() {
                         </div>
                     )}
 
-                    <button type="submit" disabled={loading || ended || isDraft || emails.length === 0} className={adminPrimaryButton}>
+                    <button type="submit" disabled={loading || ended || isDraft || (emails.length === 0 && !email.trim())} className={adminPrimaryButton}>
                         <Mail /> {loading ? 'Sending...' : 'Send all invitations'}
                     </button>
                 </form>
