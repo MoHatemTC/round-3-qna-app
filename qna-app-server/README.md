@@ -25,6 +25,25 @@
 
 [Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
 
+## API documentation
+
+- [QUIZZES_API.md](./QUIZZES_API.md) - admin quiz and question endpoints: CRUD,
+  the publish gate, invitations, and the analytics/student reporting routes.
+- [ATTEMPTS_API.md](./ATTEMPTS_API.md) - student attempt endpoints: starting an
+  attempt, submitting answers, and fetching a scored result.
+
+An interactive Swagger UI for the whole API is served at `/api` while the app
+is running.
+
+## Demo data
+
+`npm run db:seed` loads three published quizzes with ten questions each
+(TypeScript Foundations, NestJS Backend Essentials, Prisma ORM and Data
+Modeling), five invited students per quiz, and a mix of submitted,
+auto-submitted and in-progress attempts. Copy `.env.example` to `.env` and set
+the `SEED_*` variables first; the seed refuses to run without
+`SEED_ALLOW=true`, and never runs when `NODE_ENV=production`.
+
 ## Project setup
 
 ## Database migrations

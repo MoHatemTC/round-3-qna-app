@@ -1,3 +1,5 @@
+// Each question is [text, options, correctIndex, type?]. type defaults to
+// "mcq"; "true_false" questions must list exactly the two boolean options.
 export const quizRecords = [
   {
     key: "typescript",
@@ -66,14 +68,10 @@ export const quizRecords = [
         0
       ],
       [
-        "What does `as const` commonly provide?",
-        [
-          "Narrow literal types",
-          "Runtime freezing",
-          "A constant variable",
-          "Deep cloning"
-        ],
-        0
+        "`strict` mode turns on `strictNullChecks`.",
+        ["True", "False"],
+        0,
+        "true_false"
       ]
     ]
   },
@@ -155,9 +153,10 @@ export const quizRecords = [
         0
       ],
       [
-        "Which class commonly bootstraps a NestJS app?",
-        ["NestFactory", "NestLoader", "AppStarter", "NestRuntime"],
-        0
+        "A NestJS provider must be listed in a module before it can be injected.",
+        ["True", "False"],
+        0,
+        "true_false"
       ]
     ]
   },
@@ -249,14 +248,10 @@ export const quizRecords = [
         0
       ],
       [
-        "Why use a driver adapter with Prisma 7?",
-        [
-          "To connect Prisma to the database driver",
-          "To define React routes",
-          "To generate passwords",
-          "To replace the schema"
-        ],
-        0
+        "`findUnique` can return null when no row matches.",
+        ["True", "False"],
+        0,
+        "true_false"
       ]
     ]
   }

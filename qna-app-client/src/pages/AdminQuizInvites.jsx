@@ -8,13 +8,14 @@ import InvitationTable from '@/components/admin/InvitationTable';
 import { formatDateTime, hasEnded } from '@/lib/quizStatus';
 import { useNow } from '@/hooks/useNow';
 import { AdminCard, AdminPageHeader, adminInput, adminPrimaryButton } from '@/components/admin/AdminLayout';
+import { summarizeInvitationResult } from '@/lib/invitationSummary';
 
 export default function AdminQuizInvites() {
     const { quizId } = useParams();
     const [quiz, setQuiz] = useState(null);
     const [email, setEmail] = useState('');
     const [loading, setLoading] = useState(false);
-    const [message, setMessage] = useState('');
+    const [outcome, setOutcome] = useState(null);
     const [error, setError] = useState('');
     const [invitations, setInvitations] = useState([]);
     const [invitationsLoading, setInvitationsLoading] = useState(true);
@@ -47,13 +48,15 @@ export default function AdminQuizInvites() {
     const handleSendInvitation = async (e) => {
         e.preventDefault();
         setLoading(true);
-        setMessage('');
+        setOutcome(null);
         setError('');
 
         try {
             const data = await sendQuizInvitations(quizId, [email]);
-            setMessage(`Invitation processed successfully! Sent: ${data.sent}, Failed: ${data.failed}, Skipped: ${data.skipped}`);
-            setEmail('');
+            setOutcome(summarizeInvitationResult(data));
+            // Only clear the field when the address itself was usable - a typo
+            // should stay on screen so it can be corrected.
+            if (!data?.invalid) setEmail('');
             await loadInvitations();
         } catch (err) {
             setError(err.message || 'Something went wrong');
@@ -117,7 +120,14 @@ export default function AdminQuizInvites() {
                     </button>
                 </form>
 
-                {message && <p role="status" className="mt-4 text-sm text-green-700 dark:text-green-400">{message}</p>}
+                {outcome && (
+                    <p
+                        role={outcome.ok ? 'status' : 'alert'}
+                        className={`mt-4 text-sm ${outcome.ok ? 'text-green-700 dark:text-green-400' : 'text-destructive'}`}
+                    >
+                        {outcome.text}
+                    </p>
+                )}
                 {error && <p role="alert" className="mt-4 text-sm text-destructive">{error}</p>}
             </AdminCard>
 
