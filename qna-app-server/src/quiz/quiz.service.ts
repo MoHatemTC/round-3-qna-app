@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   Injectable,
+  Logger,
   NotFoundException
 } from "@nestjs/common";
 import { createHash, randomBytes } from "node:crypto";
@@ -9,7 +10,12 @@ import { CreateQuizDto } from "./dto/create-quiz.dto.js";
 import { UpdateQuizDto } from "./dto/update-quiz.dto.js";
 import { CreateInvitationDto } from "./dto/create-invitation.dto.js";
 import { NotificationService } from "../notifications/notifications.service.js";
-import { AttemptStatus, QuizStatus } from "../generated/prisma/enums.js";
+import {
+  AttemptStatus,
+  EmailStatus,
+  EmailType,
+  QuizStatus
+} from "../generated/prisma/enums.js";
 import { questionProblem } from "../question/question-rules.js";
 import type { StudentQuizStatus } from "./types/student-quiz-status.js";
 
@@ -23,6 +29,8 @@ const NEEDS_QUESTION_MESSAGE =
 
 @Injectable()
 export class QuizService {
+  private readonly logger = new Logger(QuizService.name);
+
   constructor(
     private prisma: PrismaService,
     private notifications: NotificationService
@@ -171,6 +179,30 @@ export class QuizService {
     return { message: "Quiz deleted successfully" };
   }
 
+  private async recordFailedInvitationEmail(
+    quizId: string,
+    recipient: string,
+    errorMessage: string
+  ) {
+    try {
+      await this.prisma.emailDeliveryLog.create({
+        data: {
+          type: EmailType.invitation,
+          recipient,
+          related_id: quizId,
+          status: EmailStatus.failed,
+          error_message: errorMessage
+        }
+      });
+    } catch (error) {
+      this.logger.warn(
+        `Failed to record invitation email failure for ${recipient}: ${
+          error instanceof Error ? error.message : "Unknown error occurred"
+        }`
+      );
+    }
+  }
+
   async invite(id: string, dto: CreateInvitationDto) {
     const quiz = await this.findOne(id);
     if (quiz.ends_at <= new Date()) {
@@ -211,14 +243,14 @@ export class QuizService {
     let sentCount = 0,
       failedCount = 0,
       skippedCount = 0;
-    // A malformed address is a different problem from a mail server that
-    // refused the message, so the two are counted (and reported) separately.
-    const invalidRecipients: string[] = [];
-    const failures: { email: string; reason: string }[] = [];
+    const failedEmails: { email: string; reason: string }[] = [];
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     for (const email of uniqueUsersEmail) {
       if (!emailRegex.test(email)) {
-        invalidRecipients.push(email);
+        const reason = "Invalid email address";
+        failedCount++;
+        failedEmails.push({ email, reason });
+        await this.recordFailedInvitationEmail(id, email, reason);
         continue;
       }
       let invitationId: string | undefined;
@@ -280,15 +312,16 @@ export class QuizService {
         sentCount++;
       } catch (error) {
         failedCount++;
-        failures.push({
-          email,
-          reason: error instanceof Error ? error.message : "Unknown error"
-        });
+        const reason =
+          error instanceof Error ? error.message : "Unknown error occurred";
+        failedEmails.push({ email, reason });
         if (invitationId) {
           await this.prisma.quizInvitation.update({
             where: { id: invitationId },
             data: { status: "failed" }
           });
+        } else {
+          await this.recordFailedInvitationEmail(id, email, reason);
         }
       }
     }
@@ -297,10 +330,7 @@ export class QuizService {
       sent: sentCount,
       failed: failedCount,
       skipped: skippedCount,
-      invalid: invalidRecipients.length + unresolvedUserIds,
-      invalid_emails: invalidRecipients,
-      unresolved_user_ids: unresolvedUserIds,
-      failures
+      failedEmails
     };
   }
 

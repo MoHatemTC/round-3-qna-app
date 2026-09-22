@@ -666,7 +666,48 @@ describe("QuizService - analytics", () => {
   });
 });
 
-describe("QuizService - student table", () => {
+describe("QuizService", () => {
+  it("continues the invitation batch when recording a failure cannot be written", async () => {
+    const prisma = {
+      quiz: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: "quiz-1",
+          ends_at: new Date(Date.now() + 60_000),
+          status: "published",
+          title: "Quiz",
+          duration_minutes: 30
+        })
+      },
+      emailDeliveryLog: {
+        create: jest.fn().mockRejectedValue(new Error("database unavailable"))
+      },
+      user: {
+        findUnique: jest.fn().mockResolvedValue(null)
+      },
+      quizInvitation: {
+        findUnique: jest.fn().mockResolvedValue(null),
+        create: jest.fn().mockResolvedValue({ id: "invitation-1" })
+      }
+    };
+    const notifications = { send: jest.fn().mockResolvedValue(undefined) };
+    const service = new QuizService(prisma as never, notifications as never);
+
+    const result = await service.invite("quiz-1", {
+      emails: ["not-an-email", "valid@example.com"]
+    });
+
+    expect(result).toEqual({
+      sent: 1,
+      failed: 1,
+      skipped: 0,
+      failedEmails: [{ email: "not-an-email", reason: "Invalid email address" }]
+    });
+    expect(prisma.emailDeliveryLog.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ related_id: "quiz-1" })
+    });
+    expect(notifications.send).toHaveBeenCalledTimes(1);
+  });
+
   it("filters computed not_started students after loading all attempts", async () => {
     const { service, prisma } = buildService({ quiz: publishedQuiz() });
     prisma.quizInvitation.findMany.mockResolvedValue([
