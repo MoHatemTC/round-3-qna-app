@@ -4,12 +4,31 @@
 //
 // See qna-app-server/QUIZZES_API.md for the response shape.
 export function summarizeInvitationResult(result) {
-  const { sent = 0, failed = 0, skipped = 0, invalid = 0, failures = [] } = result ?? {}
+  const {
+    sent = 0,
+    failed = 0,
+    skipped = 0,
+    invalid = 0,
+    invalid_emails = [],
+    failures = [],
+  } = result ?? {}
 
   if (invalid > 0) {
+    if (sent === 0) {
+      return {
+        ok: false,
+        text: "That doesn't look like a valid email address. Check it and try again.",
+      }
+    }
+    const sentText = sent > 0
+      ? `Sent to ${sent} student${sent === 1 ? "" : "s"}. `
+      : ""
+    const invalidAddresses = invalid_emails.length > 0
+      ? `: ${invalid_emails.join(", ")}`
+      : ""
     return {
       ok: false,
-      text: "That doesn't look like a valid email address. Check it and try again.",
+      text: `${sentText}${invalid} address${invalid === 1 ? "" : "es"} ${invalid === 1 ? "is" : "are"} invalid${invalidAddresses}.`,
     }
   }
   if (failed > 0) {

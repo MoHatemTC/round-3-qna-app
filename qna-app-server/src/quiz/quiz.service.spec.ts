@@ -573,6 +573,42 @@ describe("QuizService - invite", () => {
     expect(stamped.data.sent_at).toBeInstanceOf(Date);
   });
 
+  it("counts a sent email as successful when sent_at cannot be recorded", async () => {
+    const { service, prisma, notifications } = buildService({
+      quiz: publishedQuiz()
+    });
+    prisma.quizInvitation.update.mockRejectedValueOnce(
+      new Error("database timeout") as never
+    );
+
+    const summary = await service.invite("quiz-1", {
+      emails: ["avery@example.com", "jordan@example.com"]
+    });
+
+    expect(summary).toMatchObject({ sent: 2, failed: 0 });
+    expect(notifications.send).toHaveBeenCalledTimes(2);
+    expect(prisma.quizInvitation.update).toHaveBeenCalledTimes(2);
+  });
+
+  it("continues the batch when marking a failed invitation cannot be recorded", async () => {
+    const { service, prisma, notifications } = buildService({
+      quiz: publishedQuiz()
+    });
+    notifications.send
+      .mockRejectedValueOnce(new Error("mail server unavailable") as never)
+      .mockResolvedValueOnce(undefined as never);
+    prisma.quizInvitation.update.mockRejectedValueOnce(
+      new Error("database timeout") as never
+    );
+
+    const summary = await service.invite("quiz-1", {
+      emails: ["avery@example.com", "jordan@example.com"]
+    });
+
+    expect(summary).toMatchObject({ sent: 1, failed: 1 });
+    expect(notifications.send).toHaveBeenCalledTimes(2);
+  });
+
   it("skips an address that already has a live invitation", async () => {
     const { service, prisma, notifications } = buildService({
       quiz: publishedQuiz()

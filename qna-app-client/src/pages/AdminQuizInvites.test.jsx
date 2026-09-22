@@ -48,6 +48,18 @@ describe("summarizeInvitationResult", () => {
     expect(outcome.text).toContain("valid email address");
   });
 
+  it("summarizes successful and invalid recipients in the same batch", () => {
+    const outcome = summarizeInvitationResult({
+      sent: 9,
+      failed: 0,
+      skipped: 0,
+      invalid: 1,
+      invalid_emails: ["not-an-email"],
+    });
+
+    expect(outcome.text).toBe("Sent to 9 students. 1 address is invalid: not-an-email.");
+  });
+
   it("explains a skipped duplicate without claiming a second email went out", () => {
     const outcome = summarizeInvitationResult({ sent: 0, failed: 0, skipped: 1, invalid: 0 });
     expect(outcome.ok).toBe(true);

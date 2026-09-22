@@ -307,10 +307,18 @@ export class QuizService {
           link,
           invitationId
         );
-        await this.prisma.quizInvitation.update({
-          where: { id: invitationId },
-          data: { sent_at: new Date() }
-        });
+        try {
+          await this.prisma.quizInvitation.update({
+            where: { id: invitationId },
+            data: { sent_at: new Date() }
+          });
+        } catch (error) {
+          this.logger.warn(
+            `Invitation email sent to ${email}, but sent_at could not be recorded: ${
+              error instanceof Error ? error.message : "Unknown error occurred"
+            }`
+          );
+        }
         sentCount++;
       } catch (error) {
         failedCount++;
@@ -320,10 +328,20 @@ export class QuizService {
         failedEmails.push({ email, reason });
         failures.push({ email, reason });
         if (invitationId) {
-          await this.prisma.quizInvitation.update({
-            where: { id: invitationId },
-            data: { status: "failed" }
-          });
+          try {
+            await this.prisma.quizInvitation.update({
+              where: { id: invitationId },
+              data: { status: "failed" }
+            });
+          } catch (updateError) {
+            this.logger.warn(
+              `Failed to mark invitation for ${email} as failed: ${
+                updateError instanceof Error
+                  ? updateError.message
+                  : "Unknown error occurred"
+              }`
+            );
+          }
         } else {
           await this.recordFailedInvitationEmail(id, email, reason);
         }
