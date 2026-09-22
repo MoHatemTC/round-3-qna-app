@@ -386,6 +386,13 @@ Status: `200 OK` (not `201`).
       "email": "jordan.lee@example.com",
       "reason": "EAUTH 535: 535 5.7.0 The email limit is reached."
     }
+  ],
+  "failedEmails": [
+    { "email": "not-an-email", "reason": "Invalid email address" },
+    {
+      "email": "jordan.lee@example.com",
+      "reason": "EAUTH 535: 535 5.7.0 The email limit is reached."
+    }
   ]
 }
 ```
@@ -399,6 +406,7 @@ Status: `200 OK` (not `201`).
 | `invalid_emails` | The malformed addresses, echoed back so the caller can correct them. |
 | `unresolved_user_ids` | How many `userIds` matched no user. |
 | `failures` | One entry per delivery failure, carrying the mail server's own reason. |
+| `failedEmails` | Invalid or undeliverable addresses with reasons; the frontend retains these for correction or retry. |
 
 A malformed address is reported under `invalid`, never under `failed` — a typo is a different problem from a mail server that refused the message, and only the latter leaves a retryable row behind.
 

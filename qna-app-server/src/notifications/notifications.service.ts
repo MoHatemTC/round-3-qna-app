@@ -5,6 +5,7 @@ import { MailerAdapter } from "./adapters/mailer.adapter.js";
 import { PrismaService } from "../prisma.service.js";
 import { EmailType, EmailStatus } from "../../src/generated/prisma/client.js";
 import { QuizInvitationPayload } from "./templates/quiz-invitation-template.js";
+import { SafeMailException } from "../mail/mail.service.js";
 
 @Injectable()
 export class NotificationService {
@@ -74,7 +75,12 @@ export class NotificationService {
         where: { id: log.id },
         data: {
           status: EmailStatus.failed,
-          error_message: error.message || "Unknown error occurred"
+          error_message:
+            error instanceof SafeMailException
+              ? error.rawReason
+              : error instanceof Error
+                ? error.message
+                : "Unknown error occurred"
         }
       });
       throw error;

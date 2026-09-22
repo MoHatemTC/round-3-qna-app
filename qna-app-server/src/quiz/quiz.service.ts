@@ -243,12 +243,14 @@ export class QuizService {
     let sentCount = 0,
       failedCount = 0,
       skippedCount = 0;
+    const invalidEmails: string[] = [];
     const failedEmails: { email: string; reason: string }[] = [];
+    const failures: { email: string; reason: string }[] = [];
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     for (const email of uniqueUsersEmail) {
       if (!emailRegex.test(email)) {
         const reason = "Invalid email address";
-        failedCount++;
+        invalidEmails.push(email);
         failedEmails.push({ email, reason });
         await this.recordFailedInvitationEmail(id, email, reason);
         continue;
@@ -313,8 +315,10 @@ export class QuizService {
       } catch (error) {
         failedCount++;
         const reason =
-          error instanceof Error ? error.message : "Unknown error occurred";
+          (error as { rawReason?: string })?.rawReason ??
+          (error instanceof Error ? error.message : "Unknown error occurred");
         failedEmails.push({ email, reason });
+        failures.push({ email, reason });
         if (invitationId) {
           await this.prisma.quizInvitation.update({
             where: { id: invitationId },
@@ -330,6 +334,10 @@ export class QuizService {
       sent: sentCount,
       failed: failedCount,
       skipped: skippedCount,
+      invalid: invalidEmails.length + unresolvedUserIds,
+      invalid_emails: invalidEmails,
+      unresolved_user_ids: unresolvedUserIds,
+      failures,
       failedEmails
     };
   }
