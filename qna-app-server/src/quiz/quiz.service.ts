@@ -55,7 +55,9 @@ export class QuizService {
     }
   }
 
-  create(dto: CreateQuizDto, createdBy: string) {
+  // async so a rejected schedule surfaces as a rejected promise, the same as
+  // every other mutating method here.
+  async create(dto: CreateQuizDto, createdBy: string) {
     // A brand-new quiz has no questions yet, so it can only start as a draft.
     if (dto.status === QuizStatus.published) {
       throw new BadRequestException(NEEDS_QUESTION_MESSAGE);
@@ -213,22 +215,29 @@ export class QuizService {
         "Only published quizzes can receive invitations"
       );
     }
-    const usersEmail: string[] = dto.emails ?? [],
-      userIds: string[] = dto.userIds ?? [];
+    // Don't push onto dto.emails - that would mutate the caller's payload.
+    const requestedEmails: string[] = [...(dto.emails ?? [])];
+    const userIds: string[] = dto.userIds ?? [];
+    // Ids that match no user can't be invited; report them instead of
+    // silently dropping them, or the admin sees an all-zero summary.
+    let unresolvedUserIds = 0;
     if (userIds.length) {
       const users = await this.prisma.user.findMany({
         where: { id: { in: userIds } },
         select: { id: true, email: true }
       });
+      const found = new Set<string>();
       for (const user of users) {
         if (user?.email) {
-          usersEmail.push(user.email);
+          requestedEmails.push(user.email);
+          found.add(user.id);
         }
       }
+      unresolvedUserIds = new Set(userIds.filter((id) => !found.has(id))).size;
     }
     const uniqueUsersEmail = [
       ...new Set(
-        usersEmail.map((userEmail) => userEmail.trim().toLocaleLowerCase())
+        requestedEmails.map((userEmail) => userEmail.trim().toLocaleLowerCase())
       )
     ];
     let sentCount = 0,
@@ -258,6 +267,8 @@ export class QuizService {
         }
         const token = randomBytes(32).toString("hex");
         const tokenHash = createHash("sha256").update(token).digest("hex");
+        // sent_at stays null until the email actually goes out, so a failed
+        // invitation never shows a "sent at" time it didn't earn.
         const invitation = existing
           ? await this.prisma.quizInvitation.update({
               where: { id: existing.id },
@@ -265,7 +276,7 @@ export class QuizService {
                 user_id: user?.id ?? null,
                 token_hash: tokenHash,
                 status: "sent",
-                sent_at: new Date(),
+                sent_at: null,
                 accepted_at: null,
                 expires_at: quiz.ends_at
               }
@@ -277,7 +288,7 @@ export class QuizService {
                 user_id: user?.id ?? null,
                 token_hash: tokenHash,
                 status: "sent",
-                sent_at: new Date(),
+                sent_at: null,
                 expires_at: quiz.ends_at
               }
             });
@@ -294,6 +305,10 @@ export class QuizService {
           link,
           invitationId
         );
+        await this.prisma.quizInvitation.update({
+          where: { id: invitationId },
+          data: { sent_at: new Date() }
+        });
         sentCount++;
       } catch (error) {
         failedCount++;

@@ -22,7 +22,13 @@ import type { Request } from "express";
 import { QuizService } from "./quiz.service.js";
 import { CreateQuizDto } from "./dto/create-quiz.dto.js";
 import { UpdateQuizDto } from "./dto/update-quiz.dto.js";
-import { QuizDto } from "./dto/quiz.dto.js";
+import {
+  QuizDto,
+  QuizAnalyticsDto,
+  QuizInvitationDto,
+  QuizStudentDto,
+  InvitationSummaryDto
+} from "./dto/quiz.dto.js";
 import { CreateInvitationDto } from "./dto/create-invitation.dto.js";
 import {
   StudentQuizStatus
@@ -125,7 +131,9 @@ export class QuizController {
   @ApiOperation({ summary: "Send bulk quiz invitations (admin only)" })
   @ApiResponse({
     status: 200,
-    description: "Invitations processed summary (sent, failed, skipped)"
+    description:
+      "Per-recipient summary. Always 200 - inspect sent/failed/skipped/invalid to see whether anyone was actually invited.",
+    type: InvitationSummaryDto
   })
   @ApiResponse({ status: 400, description: "Validation failed" })
   @ApiResponse({ status: 401, description: "Not logged in" })
@@ -138,7 +146,11 @@ export class QuizController {
 
   @Get(":id/invitations")
   @ApiOperation({ summary: "Get all invitations for a quiz (admin only)" })
-  @ApiResponse({ status: 200, description: "List of quiz invitations" })
+  @ApiResponse({
+    status: 200,
+    description: "List of quiz invitations, newest first",
+    type: [QuizInvitationDto]
+  })
   @ApiResponse({ status: 401, description: "Not logged in" })
   @ApiResponse({ status: 403, description: "Logged in, but not an admin" })
   @ApiResponse({ status: 404, description: "Quiz not found" })
@@ -148,7 +160,11 @@ export class QuizController {
 
   @Get("analytics/:id")
   @ApiOperation({ summary: "Get quiz analytics (admin only)" })
-  @ApiResponse({ status: 200, description: "Quiz analytics" })
+  @ApiResponse({
+    status: 200,
+    description: "Quiz analytics",
+    type: QuizAnalyticsDto
+  })
   @ApiResponse({ status: 401, description: "Not logged in" })
   @ApiResponse({ status: 403, description: "Logged in, but not an admin" })
   @ApiResponse({ status: 404, description: "Quiz not found" })
@@ -160,7 +176,11 @@ export class QuizController {
   @ApiOperation({
     summary: "List quiz students and attempt statuses (admin only)"
   })
-  @ApiResponse({ status: 200, description: "Quiz student table" })
+  @ApiResponse({
+    status: 200,
+    description: "Quiz student table",
+    type: [QuizStudentDto]
+  })
   @ApiResponse({ status: 401, description: "Not logged in" })
   @ApiResponse({ status: 403, description: "Logged in, but not an admin" })
   @ApiResponse({ status: 404, description: "Quiz not found" })

@@ -31,4 +31,27 @@ export default tseslint.config(
       '@typescript-eslint/no-unsafe-argument': 'warn'
     },
   },
+  {
+    // Test doubles stand in for Prisma's generated client, so their recorded
+    // call arguments are deliberately loosely typed. Each test asserts only
+    // the keys it cares about; type-checking the doubles adds no safety.
+    files: ['**/*.spec.ts'],
+    rules: {
+      '@typescript-eslint/no-unsafe-assignment': 'off',
+      '@typescript-eslint/no-unsafe-member-access': 'off',
+      '@typescript-eslint/no-unsafe-call': 'off',
+      '@typescript-eslint/no-unsafe-return': 'off',
+      '@typescript-eslint/no-unnecessary-type-assertion': 'off',
+      '@typescript-eslint/unbound-method': 'off',
+      // Mock resolvers are declared async to match the real signature; there
+      // is nothing for them to await.
+      '@typescript-eslint/require-await': 'off',
+      // An options argument a double only needs for its call signature is
+      // named with a leading underscore.
+      '@typescript-eslint/no-unused-vars': [
+        'error',
+        { argsIgnorePattern: '^_', varsIgnorePattern: '^_' },
+      ],
+    },
+  },
 );

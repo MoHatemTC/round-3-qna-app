@@ -70,9 +70,11 @@ function tokenHash(key: string) {
     .digest("hex");
 }
 
-function daysFromNow(days: number, hour: number) {
+// setUTCHours truncates a fractional hour, so half-hours must be passed as
+// minutes - otherwise a "09:30" submission lands back on 09:00.
+function daysFromNow(days: number, hour: number, minute = 0) {
   const date = new Date();
-  date.setUTCHours(hour, 0, 0, 0);
+  date.setUTCHours(hour, minute, 0, 0);
   date.setUTCDate(date.getUTCDate() + days);
   return date;
 }
@@ -184,18 +186,23 @@ async function seedQuiz(
     questionIndex < quizRecord.questions.length;
     questionIndex++
   ) {
-    const [text, options, correctIndex] = quizRecord.questions[questionIndex];
+    const [text, options, correctIndex, questionType] =
+      quizRecord.questions[questionIndex];
+    const type =
+      questionType === "true_false"
+        ? QuestionType.true_false
+        : QuestionType.mcq;
     const questionId = stableId(
       "question",
       `${quizRecord.key}-${questionIndex + 1}`
     );
     const question = await prisma.question.upsert({
       where: { id: questionId },
-      update: { quiz_id: quizId, type: QuestionType.mcq, text, points: 1 },
+      update: { quiz_id: quizId, type, text, points: 1 },
       create: {
         id: questionId,
         quiz_id: quizId,
-        type: QuestionType.mcq,
+        type,
         text,
         points: 1
       }
@@ -284,7 +291,7 @@ async function seedAttempts(
     `${quizId}-${students[0].key}`
   );
   const completedStartedAt = daysFromNow(-2, 9);
-  const completedSubmittedAt = daysFromNow(-2, 9.5);
+  const completedSubmittedAt = daysFromNow(-2, 9, 30);
   const completed = await prisma.attempt.upsert({
     where: { id: completedAttemptId },
     update: {
@@ -355,7 +362,7 @@ async function seedAttempts(
       quiz_id: quizId,
       user_id: students[2].id,
       started_at: daysFromNow(-1, 10),
-      submitted_at: daysFromNow(-1, 10.75),
+      submitted_at: daysFromNow(-1, 10, 45),
       status: AttemptStatus.auto_submitted,
       score: 6,
       percentage: 60
@@ -365,7 +372,7 @@ async function seedAttempts(
       quiz_id: quizId,
       user_id: students[2].id,
       started_at: daysFromNow(-1, 10),
-      submitted_at: daysFromNow(-1, 10.75),
+      submitted_at: daysFromNow(-1, 10, 45),
       status: AttemptStatus.auto_submitted,
       score: 6,
       percentage: 60
