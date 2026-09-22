@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter, Routes, Route } from "react-router";
 import AdminQuizInvites from "./AdminQuizInvites";
 import { summarizeInvitationResult } from "@/lib/invitationSummary";
@@ -19,7 +19,7 @@ describe("summarizeInvitationResult", () => {
   it("treats a delivered invitation as a success", () => {
     const outcome = summarizeInvitationResult({ sent: 1, failed: 0, skipped: 0, invalid: 0 });
     expect(outcome.ok).toBe(true);
-    expect(outcome.text).toContain("Invitation sent to 1 student");
+    expect(outcome.text).toBe("Sent to 1 student.");
   });
 
   it("does not call a failed delivery a success", () => {
@@ -31,7 +31,7 @@ describe("summarizeInvitationResult", () => {
       failures: [{ email: "avery@example.com", reason: "550 Recipient rejected" }],
     });
     expect(outcome.ok).toBe(false);
-    expect(outcome.text).toContain("could not be delivered");
+    expect(outcome.text).toBe("1 could not be delivered (550 Recipient rejected).");
     expect(outcome.text).toContain("550 Recipient rejected");
     expect(outcome.text).not.toMatch(/success/i);
   });
@@ -45,7 +45,7 @@ describe("summarizeInvitationResult", () => {
       invalid_emails: ["not-an-email"],
     });
     expect(outcome.ok).toBe(false);
-    expect(outcome.text).toContain("valid email address");
+    expect(outcome.text).toBe("1 address is invalid: not-an-email.");
   });
 
   it("summarizes successful and invalid recipients in the same batch", () => {
@@ -60,10 +60,30 @@ describe("summarizeInvitationResult", () => {
     expect(outcome.text).toBe("Sent to 9 students. 1 address is invalid: not-an-email.");
   });
 
+  it("combines sent and failed results", () => {
+    const outcome = summarizeInvitationResult({
+      sent: 3,
+      failed: 1,
+      skipped: 0,
+      invalid: 0,
+      failures: [{ email: "rejected@example.com", reason: "Mailbox full" }],
+    });
+
+    expect(outcome.ok).toBe(false);
+    expect(outcome.text).toBe("Sent to 3 students. 1 could not be delivered (Mailbox full).");
+  });
+
+  it("combines sent and skipped results", () => {
+    const outcome = summarizeInvitationResult({ sent: 2, failed: 0, skipped: 1, invalid: 0 });
+
+    expect(outcome.ok).toBe(true);
+    expect(outcome.text).toBe("Sent to 2 students. 1 already invited.");
+  });
+
   it("explains a skipped duplicate without claiming a second email went out", () => {
     const outcome = summarizeInvitationResult({ sent: 0, failed: 0, skipped: 1, invalid: 0 });
-    expect(outcome.ok).toBe(true);
-    expect(outcome.text).toContain("already been invited");
+    expect(outcome.ok).toBe(false);
+    expect(outcome.text).toContain("already invited");
   });
 
   it("does not claim success when nothing at all happened", () => {
@@ -104,46 +124,65 @@ describe("AdminQuizInvites", () => {
 
   it("reports a failed invitation as an error, not a success", async () => {
     sendQuizInvitations.mockResolvedValue({
-      sent: 0,
+      sent: 2,
       failed: 1,
       skipped: 0,
       invalid: 0,
-      failures: [{ email: "avery@example.com", reason: "550 Recipient rejected" }],
+      failures: [{ email: "rejected@example.com", reason: "550 Recipient rejected" }],
+      failedEmails: [{ email: "rejected@example.com", reason: "550 Recipient rejected" }],
     });
     renderPage();
 
     const field = await screen.findByLabelText(/student email/i);
-    fireEvent.change(field, { target: { value: "avery@example.com" } });
-    fireEvent.click(screen.getByRole("button", { name: /send invitation/i }));
+    for (const email of ["avery@example.com", "jordan@example.com", "rejected@example.com"]) {
+      fireEvent.change(field, { target: { value: email } });
+      fireEvent.click(screen.getByRole("button", { name: /^add$/i }));
+    }
+    fireEvent.click(screen.getByRole("button", { name: /send all invitations/i }));
 
     const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent(/Sent to 2 students/i);
     expect(alert).toHaveTextContent(/could not be delivered/i);
+    const matchingFailedChips = within(screen.getByLabelText("Students to invite")).getAllByText((_, node) => {
+      const textContent = node?.textContent ?? "";
+      return textContent.includes("rejected@example.com") && textContent.includes("550 Recipient rejected");
+    });
+    expect(matchingFailedChips.some((node) => node.dataset.slot === "badge")).toBe(true);
     expect(screen.queryByText(/processed successfully/i)).not.toBeInTheDocument();
   });
 
   it("keeps a rejected address in the field so it can be corrected", async () => {
     sendQuizInvitations.mockResolvedValue({
-      sent: 0,
+      sent: 2,
       failed: 0,
       skipped: 0,
       invalid: 1,
-      invalid_emails: ["not-an-email"],
+      invalid_emails: ["bad@example.com"],
+      failedEmails: [{ email: "bad@example.com", reason: "Invalid email address" }],
     });
     renderPage();
 
     const field = await screen.findByLabelText(/student email/i);
     // type="email" would block submit in a browser; the server-side check is
     // what this exercises, so the value is set directly.
-    fireEvent.change(field, { target: { value: "bad@example" } });
-    fireEvent.click(screen.getByRole("button", { name: /send invitation/i }));
+    for (const email of ["avery@example.com", "jordan@example.com", "bad@example.com"]) {
+      fireEvent.change(field, { target: { value: email } });
+      fireEvent.click(screen.getByRole("button", { name: /^add$/i }));
+    }
+    fireEvent.click(screen.getByRole("button", { name: /send all invitations/i }));
 
-    await screen.findByRole("alert");
-    expect(field).toHaveValue("bad@example");
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent(/Sent to 2 students\. 1 address is invalid: bad@example\.com\./i);
+    const matchingInvalidChips = within(screen.getByLabelText("Students to invite")).getAllByText((_, node) => {
+      const textContent = node?.textContent ?? "";
+      return textContent.includes("bad@example.com") && textContent.includes("Invalid email address");
+    });
+    expect(matchingInvalidChips.some((node) => node.dataset.slot === "badge")).toBe(true);
   });
 
   it("confirms a delivered invitation and clears the field", async () => {
     sendQuizInvitations.mockResolvedValue({
-      sent: 1,
+      sent: 2,
       failed: 0,
       skipped: 0,
       invalid: 0,
@@ -152,11 +191,14 @@ describe("AdminQuizInvites", () => {
     renderPage();
 
     const field = await screen.findByLabelText(/student email/i);
-    fireEvent.change(field, { target: { value: "avery@example.com" } });
-    fireEvent.click(screen.getByRole("button", { name: /send invitation/i }));
+    for (const email of ["avery@example.com", "jordan@example.com"]) {
+      fireEvent.change(field, { target: { value: email } });
+      fireEvent.click(screen.getByRole("button", { name: /^add$/i }));
+    }
+    fireEvent.click(screen.getByRole("button", { name: /send all invitations/i }));
 
     const status = await screen.findByRole("status");
-    expect(status).toHaveTextContent(/Invitation sent to 1 student/i);
+    expect(status).toHaveTextContent(/Sent to 2 students/i);
     await waitFor(() => expect(field).toHaveValue(""));
   });
 
@@ -165,7 +207,7 @@ describe("AdminQuizInvites", () => {
     renderPage();
 
     await waitFor(() =>
-      expect(screen.getByRole("button", { name: /send invitation/i })).toBeDisabled()
+      expect(screen.getByRole("button", { name: /send all invitations/i })).toBeDisabled()
     );
     expect(screen.getByText(/this quiz is a draft/i)).toBeInTheDocument();
     expect(sendQuizInvitations).not.toHaveBeenCalled();
@@ -180,7 +222,7 @@ describe("AdminQuizInvites", () => {
     renderPage();
 
     expect(await screen.findByRole("alert")).toHaveTextContent(/invitations are closed/i);
-    expect(screen.getByRole("button", { name: /send invitation/i })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /send all invitations/i })).toBeDisabled();
   });
 
   it("lists the invitations returned for the quiz", async () => {
