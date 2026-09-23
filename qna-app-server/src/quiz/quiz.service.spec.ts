@@ -2,6 +2,10 @@ import { describe, expect, it, jest } from "@jest/globals";
 import { BadRequestException, NotFoundException } from "@nestjs/common";
 import { QuizService } from "./quiz.service.js";
 import { AttemptStatus, QuestionType } from "../generated/prisma/enums.js";
+import {
+  MAIL_DELIVERY_ERROR,
+  SafeMailException
+} from "../mail/mail.service.js";
 import type { CreateQuizDto } from "./dto/create-quiz.dto.js";
 import type { UpdateQuizDto } from "./dto/update-quiz.dto.js";
 
@@ -554,9 +558,34 @@ describe("QuizService - invite", () => {
     expect(summary.failures).toEqual([
       {
         email: "avery@example.com",
-        reason: "550 5.1.1 Recipient address rejected"
+        reason: "Failed to send email. Please try again later."
       }
     ]);
+    expect(prisma.quizInvitation.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: { status: "failed" } })
+    );
+  });
+
+  it("returns a safe reason for a mail delivery failure", async () => {
+    const { service, notifications, prisma } = buildService({
+      quiz: publishedQuiz()
+    });
+    const rawReason = "550 5.1.1 Recipient address rejected";
+    notifications.send.mockRejectedValue(
+      new SafeMailException(rawReason) as never
+    );
+
+    const summary = await service.invite("quiz-1", {
+      emails: ["avery@example.com"]
+    });
+
+    expect(summary.failures).toEqual([
+      { email: "avery@example.com", reason: MAIL_DELIVERY_ERROR }
+    ]);
+    expect(summary.failedEmails).toEqual([
+      { email: "avery@example.com", reason: MAIL_DELIVERY_ERROR }
+    ]);
+    expect(summary.failures[0].reason).not.toContain(rawReason);
     expect(prisma.quizInvitation.update).toHaveBeenCalledWith(
       expect.objectContaining({ data: { status: "failed" } })
     );
@@ -730,7 +759,9 @@ describe("QuizService", () => {
         } as never)
       },
       emailDeliveryLog: {
-        create: jest.fn().mockRejectedValue(new Error("database unavailable") as never)
+        create: jest
+          .fn()
+          .mockRejectedValue(new Error("database unavailable") as never)
       },
       user: {
         findUnique: jest.fn().mockResolvedValue(null as never)
@@ -741,7 +772,9 @@ describe("QuizService", () => {
         update: jest.fn().mockResolvedValue({ id: "invitation-1" } as never)
       }
     };
-    const notifications = { send: jest.fn().mockResolvedValue(undefined as never) };
+    const notifications = {
+      send: jest.fn().mockResolvedValue(undefined as never)
+    };
     const service = new QuizService(prisma as never, notifications as never);
 
     const result = await service.invite("quiz-1", {
