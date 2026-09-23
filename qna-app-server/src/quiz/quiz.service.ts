@@ -351,7 +351,6 @@ export class QuizService {
             );
           }
         } else {
-          // نحتفظ بـ rawReason هنا لأنها مخصصة للـ Logs وقاعدة البيانات داخلياً
           await this.recordFailedInvitationEmail(id, email, rawReason);
         }
       }
