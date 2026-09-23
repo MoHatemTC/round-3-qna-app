@@ -5,8 +5,7 @@ import {
 } from "@nestjs/common";
 import { MailerService } from "@nestjs-modules/mailer";
 
-export const MAIL_DELIVERY_ERROR =
-  "Failed to send email. Please try again later.";
+export const MAIL_DELIVERY_ERROR = "delivery failed.";
 
 export class SafeMailException extends ServiceUnavailableException {
   readonly rawReason: string;
@@ -36,11 +35,8 @@ function smtpReason(error: unknown) {
   >;
   // Prefer the server's own rejection text - that is what tells an admin
   // whether the address was wrong or the relay refused the message.
-  const detail =
-    asText(response) || asText(message) || "Unknown mail error";
-  const prefix = [asText(code), asText(responseCode)]
-    .filter(Boolean)
-    .join(" ");
+  const detail = asText(response) || asText(message) || "Unknown mail error";
+  const prefix = [asText(code), asText(responseCode)].filter(Boolean).join(" ");
   return prefix ? `${prefix}: ${detail}` : detail;
 }
 

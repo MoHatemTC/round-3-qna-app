@@ -558,7 +558,7 @@ describe("QuizService - invite", () => {
     expect(summary.failures).toEqual([
       {
         email: "avery@example.com",
-        reason: "Failed to send email. Please try again later."
+        reason: "delivery failed."
       }
     ]);
     expect(prisma.quizInvitation.update).toHaveBeenCalledWith(
@@ -701,6 +701,20 @@ describe("QuizService - invite", () => {
     await service.invite("quiz-1", dto);
 
     expect(dto.emails).toEqual(["avery@example.com"]);
+  });
+
+  it("logs a warning with the raw reason when an invitation email fails", async () => {
+    const { service, notifications } = buildService({ quiz: publishedQuiz() });
+    const loggerWarnSpy = jest.spyOn(service["logger"], "warn");
+
+    const rawError = "SMTP connection timeout";
+    notifications.send.mockRejectedValueOnce(new Error(rawError) as never);
+
+    await service.invite("quiz-1", { emails: ["avery@example.com"] });
+
+    expect(loggerWarnSpy).toHaveBeenCalledWith(
+      expect.stringContaining(rawError)
+    );
   });
 });
 
