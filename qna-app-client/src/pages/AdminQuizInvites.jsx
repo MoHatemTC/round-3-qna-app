@@ -68,6 +68,7 @@ export default function AdminQuizInvites() {
 
         return {
             emails: nextEmails,
+            invalidEmails,
             error: invalidEmails.length
                 ? `Invalid email address${invalidEmails.length > 1 ? 'es' : ''}: ${invalidEmails.join(', ')}`
                 : duplicateEmails.length
@@ -80,7 +81,10 @@ export default function AdminQuizInvites() {
         const result = addEmailValues(value, emails);
         setEmails(result.emails);
         setError(result.error);
-        if (!result.error || result.emails.length > emails.length) {
+
+        if (result.invalidEmails.length) {
+            setEmail(result.invalidEmails.join(' '));
+        } else if (!result.error || result.emails.length > emails.length) {
             setEmail('');
         }
         return result;
@@ -103,7 +107,7 @@ export default function AdminQuizInvites() {
 
     const handleEmailPaste = (e) => {
         const pastedValue = e.clipboardData.getData('text');
-        if (/[;,\s]/.test(pastedValue)) {
+        if (pastedValue) {
             e.preventDefault();
             addEmailInput(pastedValue);
         }
@@ -131,9 +135,12 @@ export default function AdminQuizInvites() {
         try {
             const data = await sendQuizInvitations(quizId, result.emails);
             setOutcome(summarizeInvitationResult(data));
+
             const nextFailedEmailReasons = Object.fromEntries(
                 (data.failedEmails ?? []).map(({ email: failedEmail, reason }) => [failedEmail, reason])
             );
+
+            // الاحتفاظ فقط بالإيميلات التي فشلت لإعادة عرضها للمدير مع أسبابها
             setEmails(data.failedEmails?.map(({ email: failedEmail }) => failedEmail) ?? []);
             setFailedEmailReasons(nextFailedEmailReasons);
             await loadInvitations();
@@ -186,12 +193,12 @@ export default function AdminQuizInvites() {
                         <div className="flex items-end gap-2">
                             <input
                                 id="invite-email"
-                                type="email"
+                                type="text"
                                 value={email}
                                 onChange={(e) => setEmail(e.target.value)}
                                 onKeyDown={handleEmailKeyDown}
                                 onPaste={handleEmailPaste}
-                                placeholder="student@school.edu"
+                                placeholder="student@school.edu (supports pasting multiple)"
                                 className={adminInput}
                             />
                             <button type="button" onClick={handleAddEmail} disabled={loading || ended || isDraft} className={`${adminSecondaryButton} shrink-0`}>
@@ -208,7 +215,14 @@ export default function AdminQuizInvites() {
                                     {failedEmailReasons[studentEmail] && <span className="ml-2 text-destructive">({failedEmailReasons[studentEmail]})</span>}
                                     <button
                                         type="button"
-                                        onClick={() => setEmails((currentEmails) => currentEmails.filter((emailToRemove) => emailToRemove !== studentEmail))}
+                                        onClick={() => {
+                                            setEmails((currentEmails) => currentEmails.filter((emailToRemove) => emailToRemove !== studentEmail));
+                                            setFailedEmailReasons((currentReasons) => {
+                                                const nextReasons = { ...currentReasons };
+                                                delete nextReasons[studentEmail];
+                                                return nextReasons;
+                                            });
+                                        }}
                                         aria-label={`Remove ${studentEmail}`}
                                         className="rounded-full p-0.5 hover:bg-foreground/10"
                                     >

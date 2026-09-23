@@ -18,6 +18,10 @@ import {
 } from "../generated/prisma/enums.js";
 import { questionProblem } from "../question/question-rules.js";
 import type { StudentQuizStatus } from "./types/student-quiz-status.js";
+import {
+  MAIL_DELIVERY_ERROR,
+  SafeMailException
+} from "../mail/mail.service.js";
 
 // Counts the admin CMS needs to show a quiz's activation status.
 const quizCounts = {
@@ -322,11 +326,15 @@ export class QuizService {
         sentCount++;
       } catch (error) {
         failedCount++;
-        const reason =
+        const rawReason =
           (error as { rawReason?: string })?.rawReason ??
           (error instanceof Error ? error.message : "Unknown error occurred");
-        failedEmails.push({ email, reason });
-        failures.push({ email, reason });
+
+        const safeReason = MAIL_DELIVERY_ERROR;
+
+        failedEmails.push({ email, reason: safeReason });
+        failures.push({ email, reason: safeReason });
+
         if (invitationId) {
           try {
             await this.prisma.quizInvitation.update({
@@ -343,7 +351,8 @@ export class QuizService {
             );
           }
         } else {
-          await this.recordFailedInvitationEmail(id, email, reason);
+          // نحتفظ بـ rawReason هنا لأنها مخصصة للـ Logs وقاعدة البيانات داخلياً
+          await this.recordFailedInvitationEmail(id, email, rawReason);
         }
       }
     }

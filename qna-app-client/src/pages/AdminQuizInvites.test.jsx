@@ -180,6 +180,45 @@ describe("AdminQuizInvites", () => {
     expect(matchingInvalidChips.some((node) => node.dataset.slot === "badge")).toBe(true);
   });
 
+  it("keeps invalid text from a mixed paste in the input", async () => {
+    renderPage();
+
+    const field = await screen.findByLabelText(/student email/i);
+    fireEvent.paste(field, {
+      clipboardData: { getData: () => "valid@example.com bad-address" },
+    });
+
+    expect(screen.getByLabelText(/student email/i)).toHaveValue("bad-address");
+    expect(screen.getByLabelText("Students to invite")).toHaveTextContent("valid@example.com");
+    expect(screen.getByRole("alert")).toHaveTextContent(/Invalid email address: bad-address/i);
+  });
+
+  it("clears a removed address's failure reason", async () => {
+    sendQuizInvitations.mockResolvedValue({
+      sent: 0,
+      failed: 1,
+      skipped: 0,
+      invalid: 0,
+      failures: [{ email: "rejected@example.com", reason: "Delivery failed" }],
+      failedEmails: [{ email: "rejected@example.com", reason: "Delivery failed" }],
+    });
+    renderPage();
+
+    const field = await screen.findByLabelText(/student email/i);
+    fireEvent.change(field, { target: { value: "rejected@example.com" } });
+    fireEvent.click(screen.getByRole("button", { name: /^add$/i }));
+    fireEvent.click(screen.getByRole("button", { name: /send all invitations/i }));
+
+    const inviteList = screen.getByLabelText("Students to invite");
+    await waitFor(() => expect(within(inviteList).getByText(/Delivery failed/)).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: /Remove rejected@example.com/i }));
+
+    await waitFor(() => expect(within(inviteList).queryByText(/Delivery failed/)).not.toBeInTheDocument());
+    fireEvent.change(field, { target: { value: "rejected@example.com" } });
+    fireEvent.click(screen.getByRole("button", { name: /^add$/i }));
+    expect(within(inviteList).queryByText(/Delivery failed/)).not.toBeInTheDocument();
+  });
+
   it("confirms a delivered invitation and clears the field", async () => {
     sendQuizInvitations.mockResolvedValue({
       sent: 2,
