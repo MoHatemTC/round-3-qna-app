@@ -1,20 +1,23 @@
 import {
   Injectable,
   Logger,
-  RequestTimeoutException,
   ServiceUnavailableException
 } from "@nestjs/common";
 import { MailerService } from "@nestjs-modules/mailer";
 
-// Nodemailer/SMTP error codes that really do mean "the connection timed out".
-const TIMEOUT_CODES = new Set([
-  "ETIMEDOUT",
-  "ESOCKET",
-  "ECONNECTION",
-  "EDNS",
-  "ECONNRESET"
-]);
+export const MAIL_DELIVERY_ERROR =
+  "Failed to send email. Please try again later.";
 
+export class SafeMailException extends ServiceUnavailableException {
+  readonly rawReason: string;
+
+  constructor(rawReason: string) {
+    super(MAIL_DELIVERY_ERROR);
+    this.rawReason = rawReason;
+  }
+}
+
+// Nodemailer/SMTP error codes that really do mean "the connection timed out".
 function asText(value: unknown) {
   if (typeof value === "string") return value;
   if (typeof value === "number" || typeof value === "boolean") {
@@ -60,10 +63,7 @@ export class MailService {
       // only thing that explains a failed invitation after the fact.
       const reason = smtpReason(error);
       this.logger.error(`Sending "${subject}" to ${to} failed - ${reason}`);
-      const code = (error as { code?: string })?.code;
-      throw code && TIMEOUT_CODES.has(code)
-        ? new RequestTimeoutException(reason)
-        : new ServiceUnavailableException(reason);
+      throw new SafeMailException(reason);
     }
   }
 }

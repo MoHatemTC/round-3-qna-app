@@ -110,6 +110,8 @@ export class InvitationFailureDto {
   reason!: string;
 }
 
+export class FailedInvitationEmailDto extends InvitationFailureDto {}
+
 export class InvitationSummaryDto {
   @ApiProperty({ example: 2, description: "Invitation emails delivered" })
   sent!: number;
@@ -144,6 +146,13 @@ export class InvitationSummaryDto {
     description: "Why each delivery failed, in the mail server's own words"
   })
   failures!: InvitationFailureDto[];
+
+  @ApiProperty({
+    type: [FailedInvitationEmailDto],
+    description:
+      "Invalid or undeliverable addresses retained by the frontend for correction or retry"
+  })
+  failedEmails!: FailedInvitationEmailDto[];
 }
 
 // GET /admin/quizzes/analytics/:id

@@ -511,7 +511,11 @@ describe("QuizService - invite", () => {
       sent: 1,
       failed: 0,
       skipped: 0,
-      invalid: 0
+      invalid: 0,
+      invalid_emails: [],
+      unresolved_user_ids: 0,
+      failures: [],
+      failedEmails: []
     });
   });
 
@@ -523,7 +527,14 @@ describe("QuizService - invite", () => {
     });
 
     expect(notifications.send).toHaveBeenCalledTimes(1);
-    expect(summary).toMatchObject({ sent: 1, failed: 0, invalid: 1 });
+    expect(summary).toMatchObject({
+      sent: 1,
+      failed: 0,
+      invalid: 1,
+      unresolved_user_ids: 0,
+      failures: [],
+      failedEmails: [{ email: "not-an-email", reason: "Invalid email address" }]
+    });
     expect(summary.invalid_emails).toEqual(["not-an-email"]);
   });
 
@@ -560,6 +571,42 @@ describe("QuizService - invite", () => {
     expect(created.data.sent_at).toBeNull();
     const stamped = prisma.quizInvitation.update.mock.calls[0][0] as any;
     expect(stamped.data.sent_at).toBeInstanceOf(Date);
+  });
+
+  it("counts a sent email as successful when sent_at cannot be recorded", async () => {
+    const { service, prisma, notifications } = buildService({
+      quiz: publishedQuiz()
+    });
+    prisma.quizInvitation.update.mockRejectedValueOnce(
+      new Error("database timeout") as never
+    );
+
+    const summary = await service.invite("quiz-1", {
+      emails: ["avery@example.com", "jordan@example.com"]
+    });
+
+    expect(summary).toMatchObject({ sent: 2, failed: 0 });
+    expect(notifications.send).toHaveBeenCalledTimes(2);
+    expect(prisma.quizInvitation.update).toHaveBeenCalledTimes(2);
+  });
+
+  it("continues the batch when marking a failed invitation cannot be recorded", async () => {
+    const { service, prisma, notifications } = buildService({
+      quiz: publishedQuiz()
+    });
+    notifications.send
+      .mockRejectedValueOnce(new Error("mail server unavailable") as never)
+      .mockResolvedValueOnce(undefined as never);
+    prisma.quizInvitation.update.mockRejectedValueOnce(
+      new Error("database timeout") as never
+    );
+
+    const summary = await service.invite("quiz-1", {
+      emails: ["avery@example.com", "jordan@example.com"]
+    });
+
+    expect(summary).toMatchObject({ sent: 1, failed: 1 });
+    expect(notifications.send).toHaveBeenCalledTimes(2);
   });
 
   it("skips an address that already has a live invitation", async () => {
@@ -606,8 +653,12 @@ describe("QuizService - invite", () => {
     expect(notifications.send).not.toHaveBeenCalled();
     expect(summary).toMatchObject({
       sent: 0,
+      failed: 0,
       invalid: 2,
-      unresolved_user_ids: 2
+      invalid_emails: [],
+      unresolved_user_ids: 2,
+      failures: [],
+      failedEmails: []
     });
   });
 
@@ -676,20 +727,21 @@ describe("QuizService", () => {
           status: "published",
           title: "Quiz",
           duration_minutes: 30
-        })
+        } as never)
       },
       emailDeliveryLog: {
-        create: jest.fn().mockRejectedValue(new Error("database unavailable"))
+        create: jest.fn().mockRejectedValue(new Error("database unavailable") as never)
       },
       user: {
-        findUnique: jest.fn().mockResolvedValue(null)
+        findUnique: jest.fn().mockResolvedValue(null as never)
       },
       quizInvitation: {
-        findUnique: jest.fn().mockResolvedValue(null),
-        create: jest.fn().mockResolvedValue({ id: "invitation-1" })
+        findUnique: jest.fn().mockResolvedValue(null as never),
+        create: jest.fn().mockResolvedValue({ id: "invitation-1" } as never),
+        update: jest.fn().mockResolvedValue({ id: "invitation-1" } as never)
       }
     };
-    const notifications = { send: jest.fn().mockResolvedValue(undefined) };
+    const notifications = { send: jest.fn().mockResolvedValue(undefined as never) };
     const service = new QuizService(prisma as never, notifications as never);
 
     const result = await service.invite("quiz-1", {
@@ -698,8 +750,12 @@ describe("QuizService", () => {
 
     expect(result).toEqual({
       sent: 1,
-      failed: 1,
+      failed: 0,
       skipped: 0,
+      invalid: 1,
+      invalid_emails: ["not-an-email"],
+      unresolved_user_ids: 0,
+      failures: [],
       failedEmails: [{ email: "not-an-email", reason: "Invalid email address" }]
     });
     expect(prisma.emailDeliveryLog.create).toHaveBeenCalledWith({

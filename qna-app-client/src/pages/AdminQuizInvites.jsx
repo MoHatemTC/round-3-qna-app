@@ -130,7 +130,7 @@ export default function AdminQuizInvites() {
 
         try {
             const data = await sendQuizInvitations(quizId, result.emails);
-            setMessage(`Invitation processed successfully! Sent: ${data.sent}, Failed: ${data.failed}, Skipped: ${data.skipped}`);
+            setOutcome(summarizeInvitationResult(data));
             const nextFailedEmailReasons = Object.fromEntries(
                 (data.failedEmails ?? []).map(({ email: failedEmail, reason }) => [failedEmail, reason])
             );
