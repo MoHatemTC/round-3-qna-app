@@ -18,11 +18,7 @@ import {
 } from "../generated/prisma/enums.js";
 import { questionProblem } from "../question/question-rules.js";
 import type { StudentQuizStatus } from "./types/student-quiz-status.js";
-import {
-  INVITE_DELIVERY_REASON,
-  MAIL_DELIVERY_ERROR,
-  SafeMailException
-} from "../mail/mail.service.js";
+import { INVITE_DELIVERY_REASON } from "../mail/mail.service.js";
 
 // Counts the admin CMS needs to show a quiz's activation status.
 const quizCounts = {
