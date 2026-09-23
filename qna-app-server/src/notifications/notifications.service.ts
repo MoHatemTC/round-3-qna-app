@@ -1,5 +1,8 @@
 import { BadRequestException, Injectable } from "@nestjs/common";
-import { QuizInvitationTemplate } from "./templates/quiz-invitation-template.js";
+import {
+  QuizInvitationTemplate,
+  QuizReminderTemplate
+} from "./templates/quiz-invitation-template.js";
 import { VerifyEmailTemplate } from "./templates/verifiy-email-template.js";
 import { MailerAdapter } from "./adapters/mailer.adapter.js";
 import { PrismaService } from "../prisma.service.js";
@@ -15,7 +18,7 @@ export class NotificationService {
   ) {}
 
   async send(
-    type: "verify-email" | "quiz-invitation",
+    type: "verify-email" | "quiz-invitation" | "quiz-reminder",
     recipient: string,
     payload: string | QuizInvitationPayload,
     link = "",
@@ -43,6 +46,19 @@ export class NotificationService {
         const quizData = QuizInvitationTemplate(payload, link);
         subject = quizData.subject;
         body = quizData.body;
+        emailType = EmailType.invitation;
+        break;
+      }
+
+      case "quiz-reminder": {
+        if (typeof payload === "string") {
+          throw new BadRequestException(
+            "Quiz reminder payload must be structured"
+          );
+        }
+        const reminderData = QuizReminderTemplate(payload, link);
+        subject = reminderData.subject;
+        body = reminderData.body;
         emailType = EmailType.invitation;
         break;
       }

@@ -40,6 +40,10 @@ export function sendQuizInvitations(id, emails) {
   return api.post(`/admin/quizzes/${id}/invitations`, { emails, userIds: [] })
 }
 
+export function remindQuizInvitations(id, emails) {
+  return api.post(`/admin/quizzes/${id}/invitations/remind`, { emails })
+}
+
 export function logout() {
   return api.post("/auth/logout", {})
 }

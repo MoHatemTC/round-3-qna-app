@@ -6,7 +6,11 @@ import {
   it,
   jest
 } from "@jest/globals";
-import { BadRequestException, NotFoundException, ValidationPipe } from "@nestjs/common";
+import {
+  BadRequestException,
+  NotFoundException,
+  ValidationPipe
+} from "@nestjs/common";
 import { Test } from "@nestjs/testing";
 import type { INestApplication } from "@nestjs/common";
 import request from "supertest";
@@ -37,6 +41,12 @@ async function buildApp(overrides: Partial<ServiceStub> = {}) {
       invalid_emails: [],
       unresolved_user_ids: 0,
       failures: []
+    })),
+    remind: jest.fn(async () => ({
+      sent: 1,
+      failed: 0,
+      skipped: 0,
+      failedEmails: []
     })),
     getQuizInvitations: jest.fn(async () => []),
     getQuizAnalytics: jest.fn(async () => ({ quiz_id: "quiz-1" })),
@@ -115,7 +125,9 @@ describe("QuizController - CRUD routes", () => {
       .send({ ...validQuiz, created_by: "someone-else" })
       .expect(400);
 
-    expect(response.body.message).toContain("property created_by should not exist");
+    expect(response.body.message).toContain(
+      "property created_by should not exist"
+    );
     expect(quizService.create).not.toHaveBeenCalled();
   });
 
@@ -125,9 +137,7 @@ describe("QuizController - CRUD routes", () => {
   });
 
   it("GET /admin/quizzes/:id answers 200", async () => {
-    await request(app.getHttpServer())
-      .get("/admin/quizzes/quiz-1")
-      .expect(200);
+    await request(app.getHttpServer()).get("/admin/quizzes/quiz-1").expect(200);
     expect(quizService.findOne).toHaveBeenCalledWith("quiz-1");
   });
 
@@ -275,6 +285,32 @@ describe("QuizController - invitation routes", () => {
       .expect(200, []);
 
     expect(quizService.getQuizInvitations).toHaveBeenCalledWith("quiz-1");
+    await app.close();
+  });
+
+  it("POST invitations/remind answers 200 and passes selected emails", async () => {
+    const { app, quizService } = await buildApp();
+
+    await request(app.getHttpServer())
+      .post("/admin/quizzes/quiz-1/invitations/remind")
+      .send({ emails: ["waiting@example.com"] })
+      .expect(200);
+
+    expect(quizService.remind).toHaveBeenCalledWith("quiz-1", {
+      emails: ["waiting@example.com"]
+    });
+    await app.close();
+  });
+
+  it("POST invitations/remind rejects an empty selection", async () => {
+    const { app, quizService } = await buildApp();
+
+    await request(app.getHttpServer())
+      .post("/admin/quizzes/quiz-1/invitations/remind")
+      .send({ emails: [] })
+      .expect(400);
+
+    expect(quizService.remind).not.toHaveBeenCalled();
     await app.close();
   });
 });

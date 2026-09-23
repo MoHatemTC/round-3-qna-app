@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router';
 import { ArrowLeft, Mail, Plus, X } from 'lucide-react';
-import { getQuiz, getQuizInvitations, sendQuizInvitations } from '@/services/services';
+import { getQuiz, getQuizInvitations, remindQuizInvitations, sendQuizInvitations } from '@/services/services';
 import QuizStatusBadge from '@/components/admin/QuizStatusBadge';
 import PublishStateBadge from '@/components/admin/PublishStateBadge';
 import InvitationTable from '@/components/admin/InvitationTable';
@@ -10,6 +10,7 @@ import { formatDateTime, hasEnded } from '@/lib/quizStatus';
 import { useNow } from '@/hooks/useNow';
 import { AdminCard, AdminPageHeader, adminInput, adminPrimaryButton, adminSecondaryButton } from '@/components/admin/AdminLayout';
 import { summarizeInvitationResult } from '@/lib/invitationSummary';
+import ReminderPopup from '@/components/admin/ReminderPopup';
 
 export default function AdminQuizInvites() {
     const { quizId } = useParams();
@@ -23,6 +24,8 @@ export default function AdminQuizInvites() {
     const [invitations, setInvitations] = useState([]);
     const [invitationsLoading, setInvitationsLoading] = useState(true);
     const [invitationsError, setInvitationsError] = useState('');
+    const [showReminderPopup, setShowReminderPopup] = useState(false);
+    const [reminding, setReminding] = useState(false);
     const now = useNow();
     const ended = Boolean(quiz && hasEnded(quiz, now));
     const isDraft = Boolean(quiz && quiz.status !== 'published');
@@ -150,6 +153,24 @@ export default function AdminQuizInvites() {
         }
     };
 
+    const handleRemind = async (selectedEmails) => {
+        setReminding(true);
+        setError('');
+        try {
+            const data = await remindQuizInvitations(quizId, selectedEmails);
+            setOutcome({
+                ok: data.failed === 0 && data.sent > 0,
+                text: `Reminded ${data.sent} ${data.sent === 1 ? 'student' : 'students'}.${data.failed ? ` ${data.failed} could not be reached.` : ''}`
+            });
+            setShowReminderPopup(false);
+            await loadInvitations();
+        } catch (err) {
+            setError(err.message || 'Unable to send reminders.');
+        } finally {
+            setReminding(false);
+        }
+    };
+
     return (
         <>
             <Link
@@ -259,6 +280,26 @@ export default function AdminQuizInvites() {
                     error={invitationsError}
                 />
             </AdminCard>
+
+            <div className="mt-5 flex justify-end">
+                <button
+                    type="button"
+                    className={adminSecondaryButton}
+                    onClick={() => setShowReminderPopup(true)}
+                    disabled={invitationsLoading || !invitations.some((invitation) => invitation.status === 'sent')}
+                >
+                    <Mail /> Remind Students
+                </button>
+            </div>
+
+            {showReminderPopup && (
+                <ReminderPopup
+                    invitations={invitations}
+                    loading={reminding}
+                    onClose={() => setShowReminderPopup(false)}
+                    onRemind={handleRemind}
+                />
+            )}
         </>
     );
 }

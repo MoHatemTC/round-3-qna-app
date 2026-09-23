@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { it, expect, vi, beforeEach, afterEach } from "vitest";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, Routes, Route } from "react-router";
 import QuizSolve from "./QuizSolve";
 
@@ -68,4 +68,34 @@ it("auto-submits with an empty payload if no answers were selected", async () =>
   await waitFor(() => {
     expect(submitAttempt).toHaveBeenCalledWith("attempt-1", []);
   });
+});
+
+it("warns with unanswered question numbers before manual submission", async () => {
+  const state = {
+    ...locationState,
+    questions: [
+      locationState.questions[0],
+      { id: "q2", type: "mcq", text: "3 + 3?", options: [{ id: "c", text: "6" }] },
+    ],
+  };
+  renderWithState(state);
+  await waitFor(() => expect(screen.getByText(/2 \+ 2\?/)).toBeInTheDocument());
+
+  fireEvent.click(screen.getByText("Submit quiz"));
+
+  expect(await screen.findByRole("dialog")).toBeInTheDocument();
+  expect(screen.getByTestId("unanswered-question-numbers")).toHaveTextContent("1, 2");
+  expect(submitAttempt).not.toHaveBeenCalled();
+});
+
+it("submits immediately when all questions are answered", async () => {
+  renderWithState(locationState);
+  await waitFor(() => expect(screen.getByText(/2 \+ 2\?/)).toBeInTheDocument());
+
+  fireEvent.click(screen.getByText("4"));
+  fireEvent.click(screen.getByText("Submit quiz"));
+
+  await waitFor(() => expect(submitAttempt).toHaveBeenCalledWith("attempt-1", [
+    { question_id: "q1", selected_option_id: "a" },
+  ]));
 });

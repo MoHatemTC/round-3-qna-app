@@ -9,6 +9,7 @@ import { PrismaService } from "../prisma.service.js";
 import { CreateQuizDto } from "./dto/create-quiz.dto.js";
 import { UpdateQuizDto } from "./dto/update-quiz.dto.js";
 import { CreateInvitationDto } from "./dto/create-invitation.dto.js";
+import { RemindInvitationsDto } from "./dto/remind-invitations.dto.js";
 import { NotificationService } from "../notifications/notifications.service.js";
 import {
   AttemptStatus,
@@ -82,19 +83,35 @@ export class QuizService {
   }
 
   findAll() {
-    return this.prisma.quiz.findMany({
-      orderBy: { created_at: "desc" },
+    return this.prisma.quiz
+      .findMany({
+        orderBy: { created_at: "desc" },
+        include: quizCounts
+      })
+      .then((quizzes) =>
+        Promise.all(quizzes.map((quiz) => this.demoteExpired(quiz)))
+      );
+  }
+
+  private async demoteExpired<
+    T extends { id: string; status: QuizStatus; ends_at: Date }
+  >(quiz: T) {
+    if (quiz.status !== QuizStatus.published || quiz.ends_at > new Date())
+      return quiz;
+    return this.prisma.quiz.update({
+      where: { id: quiz.id },
+      data: { status: QuizStatus.draft },
       include: quizCounts
     });
   }
 
   async findOne(id: string) {
-    const quiz = await this.prisma.quiz.findUnique({
+    let quiz = await this.prisma.quiz.findUnique({
       where: { id },
       include: quizCounts
     });
     if (!quiz) throw new NotFoundException("Quiz not found");
-    return quiz;
+    return this.demoteExpired(quiz);
   }
 
   // Refuses publishing unless the quiz has at least one question and every
@@ -363,6 +380,61 @@ export class QuizService {
       invalid_emails: invalidEmails,
       unresolved_user_ids: unresolvedUserIds,
       failures,
+      failedEmails
+    };
+  }
+
+  async remind(id: string, dto: RemindInvitationsDto) {
+    const quiz = await this.findOne(id);
+    if (quiz.ends_at <= new Date()) {
+      throw new BadRequestException(
+        "This quiz has already ended, so reminders cannot be sent. Extend its end time first."
+      );
+    }
+
+    const requestedEmails = [
+      ...new Set(dto.emails.map((email) => email.trim().toLowerCase()))
+    ];
+    const invitations = await this.prisma.quizInvitation.findMany({
+      where: { quiz_id: id, status: "sent", email: { in: requestedEmails } },
+      select: { id: true, email: true }
+    });
+    const pendingByEmail = new Map(
+      invitations.map((invitation) => [invitation.email, invitation])
+    );
+    let sent = 0;
+    let failed = 0;
+    const failedEmails: { email: string; reason: string }[] = [];
+
+    for (const email of requestedEmails) {
+      const invitation = pendingByEmail.get(email);
+      if (!invitation) continue;
+      try {
+        await this.notifications.send(
+          "quiz-reminder",
+          email,
+          {
+            title: quiz.title,
+            durationMinutes: quiz.duration_minutes,
+            deadline: quiz.ends_at
+          },
+          `${process.env.CLIENT_URL ?? "http://localhost:5173"}/dashboard`,
+          invitation.id
+        );
+        sent++;
+      } catch (error) {
+        failed++;
+        failedEmails.push({ email, reason: INVITE_DELIVERY_REASON });
+        this.logger.warn(
+          `Reminder to ${email} failed: ${error instanceof Error ? error.message : "Unknown error occurred"}`
+        );
+      }
+    }
+
+    return {
+      sent,
+      failed,
+      skipped: requestedEmails.length - invitations.length,
       failedEmails
     };
   }

@@ -4,7 +4,6 @@ import { QuizService } from "./quiz.service.js";
 import { AttemptStatus, QuestionType } from "../generated/prisma/enums.js";
 import {
   INVITE_DELIVERY_REASON,
-  MAIL_DELIVERY_ERROR,
   SafeMailException
 } from "../mail/mail.service.js";
 import type { CreateQuizDto } from "./dto/create-quiz.dto.js";
@@ -212,6 +211,43 @@ describe("QuizService - read", () => {
     const { service } = buildService({ quiz: null });
 
     await expect(service.findOne("missing")).rejects.toThrow(NotFoundException);
+  });
+
+  it("demotes an expired published quiz to draft when it is read", async () => {
+    const { service, prisma } = buildService({
+      quiz: publishedQuiz({
+        starts_at: new Date(Date.now() - 2 * HOUR),
+        ends_at: new Date(Date.now() - HOUR)
+      })
+    });
+
+    const quiz = await service.findOne("quiz-1");
+
+    expect(quiz.status).toBe("draft");
+    expect(prisma.quiz.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "quiz-1" },
+        data: { status: "draft" }
+      })
+    );
+  });
+
+  it("demotes expired published quizzes in the admin list", async () => {
+    const { service, prisma } = buildService({
+      quiz: publishedQuiz({
+        starts_at: new Date(Date.now() - 2 * HOUR),
+        ends_at: new Date(Date.now() - HOUR)
+      })
+    });
+
+    const quizzes = await service.findAll();
+
+    expect(quizzes[0].status).toBe("draft");
+    expect(prisma.quiz.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: { status: "draft" }
+      })
+    );
   });
 });
 
@@ -716,6 +752,67 @@ describe("QuizService - invite", () => {
     expect(loggerWarnSpy).toHaveBeenCalledWith(
       expect.stringContaining(rawError)
     );
+  });
+});
+
+describe("QuizService - remind", () => {
+  it("only sends reminders to invitations whose stored status is sent", async () => {
+    const { service, prisma, notifications } = buildService({
+      quiz: publishedQuiz()
+    });
+    prisma.quizInvitation.findMany.mockResolvedValue([
+      { id: "inv-1", email: "waiting@example.com" }
+    ] as never);
+
+    const summary = await service.remind("quiz-1", {
+      emails: ["waiting@example.com", "accepted@example.com"]
+    });
+
+    expect(prisma.quizInvitation.findMany).toHaveBeenCalledWith({
+      where: {
+        quiz_id: "quiz-1",
+        status: "sent",
+        email: { in: ["waiting@example.com", "accepted@example.com"] }
+      },
+      select: { id: true, email: true }
+    });
+    expect(notifications.send).toHaveBeenCalledWith(
+      "quiz-reminder",
+      "waiting@example.com",
+      expect.objectContaining({ title: "TypeScript Foundations" }),
+      expect.stringContaining("/dashboard"),
+      "inv-1"
+    );
+    expect(summary).toEqual({
+      sent: 1,
+      failed: 0,
+      skipped: 1,
+      failedEmails: []
+    });
+  });
+
+  it("reports failed reminder delivery without changing invitation status", async () => {
+    const { service, prisma, notifications } = buildService({
+      quiz: publishedQuiz()
+    });
+    prisma.quizInvitation.findMany.mockResolvedValue([
+      { id: "inv-1", email: "waiting@example.com" }
+    ] as never);
+    notifications.send.mockRejectedValue(
+      new Error("mail unavailable") as never
+    );
+
+    await expect(
+      service.remind("quiz-1", { emails: ["waiting@example.com"] })
+    ).resolves.toEqual({
+      sent: 0,
+      failed: 1,
+      skipped: 0,
+      failedEmails: [
+        { email: "waiting@example.com", reason: INVITE_DELIVERY_REASON }
+      ]
+    });
+    expect(prisma.quizInvitation.update).not.toHaveBeenCalled();
   });
 });
 
