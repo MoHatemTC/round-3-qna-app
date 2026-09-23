@@ -19,6 +19,7 @@ import {
 import { questionProblem } from "../question/question-rules.js";
 import type { StudentQuizStatus } from "./types/student-quiz-status.js";
 import {
+  INVITE_DELIVERY_REASON,
   MAIL_DELIVERY_ERROR,
   SafeMailException
 } from "../mail/mail.service.js";
@@ -332,7 +333,7 @@ export class QuizService {
 
         this.logger.warn(`Invitation to ${email} failed: ${rawReason}`);
 
-        const safeReason = MAIL_DELIVERY_ERROR;
+        const safeReason = INVITE_DELIVERY_REASON;
 
         failedEmails.push({ email, reason: safeReason });
         failures.push({ email, reason: safeReason });

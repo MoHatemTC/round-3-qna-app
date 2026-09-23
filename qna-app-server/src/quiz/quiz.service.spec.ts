@@ -3,6 +3,7 @@ import { BadRequestException, NotFoundException } from "@nestjs/common";
 import { QuizService } from "./quiz.service.js";
 import { AttemptStatus, QuestionType } from "../generated/prisma/enums.js";
 import {
+  INVITE_DELIVERY_REASON,
   MAIL_DELIVERY_ERROR,
   SafeMailException
 } from "../mail/mail.service.js";
@@ -558,7 +559,7 @@ describe("QuizService - invite", () => {
     expect(summary.failures).toEqual([
       {
         email: "avery@example.com",
-        reason: "delivery failed."
+        reason: INVITE_DELIVERY_REASON
       }
     ]);
     expect(prisma.quizInvitation.update).toHaveBeenCalledWith(
@@ -580,10 +581,10 @@ describe("QuizService - invite", () => {
     });
 
     expect(summary.failures).toEqual([
-      { email: "avery@example.com", reason: MAIL_DELIVERY_ERROR }
+      { email: "avery@example.com", reason: INVITE_DELIVERY_REASON }
     ]);
     expect(summary.failedEmails).toEqual([
-      { email: "avery@example.com", reason: MAIL_DELIVERY_ERROR }
+      { email: "avery@example.com", reason: INVITE_DELIVERY_REASON }
     ]);
     expect(summary.failures[0].reason).not.toContain(rawReason);
     expect(prisma.quizInvitation.update).toHaveBeenCalledWith(

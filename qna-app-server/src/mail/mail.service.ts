@@ -5,7 +5,9 @@ import {
 } from "@nestjs/common";
 import { MailerService } from "@nestjs-modules/mailer";
 
-export const MAIL_DELIVERY_ERROR = "delivery failed.";
+export const MAIL_DELIVERY_ERROR =
+  "Failed to send email. Please try again later.";
+export const INVITE_DELIVERY_REASON = "delivery failed";
 
 export class SafeMailException extends ServiceUnavailableException {
   readonly rawReason: string;
