@@ -3,11 +3,13 @@ import { Link, useNavigate } from "react-router";
 import AuthCard, { AuthMessage, authButtonClass, authInputClass } from "@/components/AuthCard";
 import { api } from "@/lib/api";
 import { dashboardPathFor, useSession } from "@/context/session";
+import { Eye, EyeOff } from "lucide-react";
 
 const LoginPage = () => {
 
     const [email, setEmail] = useState("")
     const [password, setPassword] = useState("")
+    const [showPassword, setShowPassword] = useState(false)
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState("")
 
@@ -62,16 +64,21 @@ const LoginPage = () => {
                     <label className="text-sm font-medium" htmlFor="password">
                         Password
                     </label>
-                    <input
-                        id="password"
-                        type="password"
-                        autoComplete="current-password"
-                        placeholder="At least 8 characters"
-                        className={authInputClass}
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        required
-                    />
+                    <div className="relative">
+                        <input
+                            id="password"
+                            type={showPassword ? "text" : "password"}
+                            autoComplete="current-password"
+                            placeholder="At least 8 characters"
+                            className={`${authInputClass} pr-11`}
+                            value={password}
+                            onChange={(e) => setPassword(e.target.value)}
+                            required
+                        />
+                        <button type="button" className="absolute inset-y-0 right-0 px-3 text-muted-foreground" onClick={() => setShowPassword((visible) => !visible)} aria-label={showPassword ? "Hide password" : "Show password"}>
+                            {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                        </button>
+                    </div>
                 </div>
                 <button disabled={loading} className={authButtonClass}>
                     {loading ? "Signing in..." : "Sign in"}

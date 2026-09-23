@@ -33,6 +33,7 @@ export default function QuizSolve() {
   });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const [showUnansweredWarning, setShowUnansweredWarning] = useState(false);
   const [currentPage, setCurrentPage] = useState(0);
   const submittedRef = useRef(false);
   const pageHeadingRef = useRef(null);
@@ -75,7 +76,7 @@ export default function QuizSolve() {
       : { question_id: question.id, selected_option_id: selected }];
   });
 
-  const handleSubmit = async () => {
+  const submitNow = async () => {
     if (submitting || submittedRef.current || !attemptId) return;
 
     setSubmitting(true);
@@ -103,6 +104,18 @@ export default function QuizSolve() {
     }
   };
 
+  const handleSubmit = () => {
+    const unanswered = questions
+      .map((question, index) => ({ question, number: index + 1 }))
+      .filter(({ question }) => answers[question.id] === undefined)
+      .map(({ number }) => number);
+    if (unanswered.length > 0) {
+      setShowUnansweredWarning(true);
+      return;
+    }
+    return submitNow();
+  };
+
   // After moving to the next page, put focus on its heading so keyboard and
   // screen reader users follow along. Skipped on first render.
   const hasNavigatedRef = useRef(false);
@@ -114,7 +127,7 @@ export default function QuizSolve() {
     pageHeadingRef.current?.focus({ preventScroll: true });
   }, [currentPage]);
 
-  const submitWhenExpired = useEffectEvent(handleSubmit);
+  const submitWhenExpired = useEffectEvent(submitNow);
 
   // Auto-submit at zero — fires regardless of whether anything was answered,
   // so blank attempts are still recorded rather than silently dropped.
@@ -180,6 +193,22 @@ export default function QuizSolve() {
         )}
 
         {error && <p role="alert" className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
+
+        {showUnansweredWarning && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" role="presentation">
+            <section role="dialog" aria-modal="true" aria-labelledby="unanswered-title" className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl">
+              <h2 id="unanswered-title" className="text-lg font-bold">Some questions are unanswered</h2>
+              <p className="mt-2 text-sm text-gray-600">Question numbers still unanswered:</p>
+              <p className="mt-2 font-semibold" data-testid="unanswered-question-numbers">
+                {questions.map((question, index) => answers[question.id] === undefined ? index + 1 : null).filter(Boolean).join(", ")}
+              </p>
+              <div className="mt-6 flex justify-end gap-2">
+                <Button type="button" variant="outline" onClick={() => setShowUnansweredWarning(false)}>Go back</Button>
+                <Button type="button" onClick={() => { setShowUnansweredWarning(false); submitNow(); }}>Confirm submission</Button>
+              </div>
+            </section>
+          </div>
+        )}
 
         <h2
           ref={pageHeadingRef}

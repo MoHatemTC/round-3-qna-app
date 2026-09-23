@@ -9,6 +9,7 @@ import { PrismaService } from "../prisma.service.js";
 import { CreateQuizDto } from "./dto/create-quiz.dto.js";
 import { UpdateQuizDto } from "./dto/update-quiz.dto.js";
 import { CreateInvitationDto } from "./dto/create-invitation.dto.js";
+import { RemindInvitationsDto } from "./dto/remind-invitations.dto.js";
 import { NotificationService } from "../notifications/notifications.service.js";
 import {
   AttemptStatus,
@@ -19,6 +20,7 @@ import {
 import { questionProblem } from "../question/question-rules.js";
 import type { StudentQuizStatus } from "./types/student-quiz-status.js";
 import { INVITE_DELIVERY_REASON } from "../mail/mail.service.js";
+import { clientUrl } from "../config/app.config.js";
 
 // Counts the admin CMS needs to show a quiz's activation status.
 const quizCounts = {
@@ -81,7 +83,11 @@ export class QuizService {
     });
   }
 
-  findAll() {
+  async findAll() {
+    await this.prisma.quiz.updateMany({
+      where: { status: QuizStatus.published, ends_at: { lt: new Date() } },
+      data: { status: QuizStatus.draft }
+    });
     return this.prisma.quiz.findMany({
       orderBy: { created_at: "desc" },
       include: quizCounts
@@ -89,6 +95,10 @@ export class QuizService {
   }
 
   async findOne(id: string) {
+    await this.prisma.quiz.updateMany({
+      where: { status: QuizStatus.published, ends_at: { lt: new Date() } },
+      data: { status: QuizStatus.draft }
+    });
     const quiz = await this.prisma.quiz.findUnique({
       where: { id },
       include: quizCounts
@@ -296,7 +306,7 @@ export class QuizService {
               }
             });
         invitationId = invitation.id;
-        const link = `${process.env.CLIENT_URL ?? "http://localhost:5173"}/quiz/invite/${token}`;
+        const link = `${clientUrl}/quiz/invite/${token}`;
         await this.notifications.send(
           "quiz-invitation",
           email,
@@ -367,6 +377,73 @@ export class QuizService {
     };
   }
 
+  async remind(id: string, dto: RemindInvitationsDto) {
+    const quiz = await this.findOne(id);
+    if (quiz.ends_at <= new Date()) {
+      throw new BadRequestException(
+        "This quiz has already ended, so reminders cannot be sent. Extend its end time first."
+      );
+    }
+
+    const requestedEmails = [
+      ...new Set(dto.emails.map((email) => email.trim().toLowerCase()))
+    ];
+    const invitations = await this.prisma.quizInvitation.findMany({
+      where: {
+        quiz_id: id,
+        status: "sent",
+        OR: [
+          { reminded_at: null },
+          { reminded_at: { lt: new Date(Date.now() - 24 * 60 * 60 * 1000) } }
+        ],
+        email: { in: requestedEmails }
+      },
+      select: { id: true, email: true }
+    });
+    const pendingByEmail = new Map(
+      invitations.map((invitation) => [invitation.email, invitation])
+    );
+    let sent = 0;
+    let failed = 0;
+    const failedEmails: { email: string; reason: string }[] = [];
+
+    for (const email of requestedEmails) {
+      const invitation = pendingByEmail.get(email);
+      if (!invitation) continue;
+      try {
+        await this.notifications.send(
+          "quiz-reminder",
+          email,
+          {
+            title: quiz.title,
+            durationMinutes: quiz.duration_minutes,
+            deadline: quiz.ends_at
+          },
+          `${clientUrl}/dashboard`,
+          invitation.id
+        );
+        await this.prisma.quizInvitation.update({
+          where: { id: invitation.id },
+          data: { reminded_at: new Date(), reminder_count: { increment: 1 } }
+        });
+        sent++;
+      } catch (error) {
+        failed++;
+        failedEmails.push({ email, reason: INVITE_DELIVERY_REASON });
+        this.logger.warn(
+          `Reminder to ${email} failed: ${error instanceof Error ? error.message : "Unknown error occurred"}`
+        );
+      }
+    }
+
+    return {
+      sent,
+      failed,
+      skipped: requestedEmails.length - invitations.length,
+      failedEmails
+    };
+  }
+
   async getQuizInvitations(quizId: string) {
     const quizInvitation = await this.findOne(quizId);
     if (!quizInvitation) {
@@ -380,6 +457,8 @@ export class QuizService {
         status: true,
         sent_at: true,
         accepted_at: true,
+        reminded_at: true,
+        reminder_count: true,
         user: {
           select: {
             id: true,

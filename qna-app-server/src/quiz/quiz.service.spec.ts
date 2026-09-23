@@ -4,11 +4,11 @@ import { QuizService } from "./quiz.service.js";
 import { AttemptStatus, QuestionType } from "../generated/prisma/enums.js";
 import {
   INVITE_DELIVERY_REASON,
-  MAIL_DELIVERY_ERROR,
   SafeMailException
 } from "../mail/mail.service.js";
 import type { CreateQuizDto } from "./dto/create-quiz.dto.js";
 import type { UpdateQuizDto } from "./dto/update-quiz.dto.js";
+import type { NotificationService } from "../notifications/notifications.service.js";
 
 // The service is driven through a hand-rolled Prisma double: every test states
 // exactly which rows the database holds, so the assertions are about the
@@ -48,6 +48,17 @@ function buildPrisma({
       create: jest.fn(async ({ data }: any) => ({ id: "new-quiz", ...data })),
       findMany: jest.fn(async (_args?: DbArgs) => (quiz ? [quiz] : [])),
       findUnique: jest.fn(async () => quiz ?? null),
+      updateMany: jest.fn(async ({ where, data }: any) => {
+        if (
+          quiz &&
+          quiz.status === where.status &&
+          quiz.ends_at &&
+          quiz.ends_at < where.ends_at.lt
+        ) {
+          Object.assign(quiz, data);
+        }
+        return { count: quiz ? 1 : 0 };
+      }),
       update: jest.fn(async ({ where, data }: any) => ({
         ...quiz,
         ...data,
@@ -81,7 +92,9 @@ function buildPrisma({
 
 function buildService(options?: Parameters<typeof buildPrisma>[0]) {
   const prisma = buildPrisma(options);
-  const notifications = { send: jest.fn(async () => undefined) };
+  const notifications = {
+    send: jest.fn<NotificationService["send"]>(async () => undefined)
+  };
   const service = new QuizService(prisma as never, notifications as never);
   return { service, prisma, notifications };
 }
@@ -212,6 +225,50 @@ describe("QuizService - read", () => {
     const { service } = buildService({ quiz: null });
 
     await expect(service.findOne("missing")).rejects.toThrow(NotFoundException);
+  });
+
+  it("demotes an expired published quiz to draft when it is read", async () => {
+    const { service, prisma } = buildService({
+      quiz: publishedQuiz({
+        starts_at: new Date(Date.now() - 2 * HOUR),
+        ends_at: new Date(Date.now() - HOUR)
+      })
+    });
+
+    const quiz = await service.findOne("quiz-1");
+
+    expect(quiz.status).toBe("draft");
+    expect(prisma.quiz.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          status: "published",
+          ends_at: { lt: expect.any(Date) }
+        }),
+        data: { status: "draft" }
+      })
+    );
+  });
+
+  it("demotes expired published quizzes in the admin list", async () => {
+    const { service, prisma } = buildService({
+      quiz: publishedQuiz({
+        starts_at: new Date(Date.now() - 2 * HOUR),
+        ends_at: new Date(Date.now() - HOUR)
+      })
+    });
+
+    const quizzes = await service.findAll();
+
+    expect(quizzes[0].status).toBe("draft");
+    expect(prisma.quiz.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          status: "published",
+          ends_at: { lt: expect.any(Date) }
+        }),
+        data: { status: "draft" }
+      })
+    );
   });
 });
 
@@ -719,6 +776,75 @@ describe("QuizService - invite", () => {
   });
 });
 
+describe("QuizService - remind", () => {
+  it("only sends reminders to invitations whose stored status is sent", async () => {
+    const { service, prisma, notifications } = buildService({
+      quiz: publishedQuiz()
+    });
+    prisma.quizInvitation.findMany.mockResolvedValue([
+      { id: "inv-1", email: "waiting@example.com" }
+    ] as never);
+
+    const summary = await service.remind("quiz-1", {
+      emails: ["waiting@example.com", "accepted@example.com"]
+    });
+
+    expect(prisma.quizInvitation.findMany).toHaveBeenCalledWith({
+      where: {
+        quiz_id: "quiz-1",
+        status: "sent",
+        OR: [
+          { reminded_at: null },
+          { reminded_at: { lt: expect.any(Date) } }
+        ],
+        email: { in: ["waiting@example.com", "accepted@example.com"] }
+      },
+      select: { id: true, email: true }
+    });
+    expect(notifications.send).toHaveBeenCalledWith(
+      "quiz-reminder",
+      "waiting@example.com",
+      expect.objectContaining({ title: "TypeScript Foundations" }),
+      expect.stringContaining("/dashboard"),
+      "inv-1"
+    );
+    expect(prisma.quizInvitation.update).toHaveBeenCalledWith({
+      where: { id: "inv-1" },
+      data: { reminded_at: expect.any(Date), reminder_count: { increment: 1 } }
+    });
+    expect(summary).toEqual({
+      sent: 1,
+      failed: 0,
+      skipped: 1,
+      failedEmails: []
+    });
+  });
+
+  it("reports failed reminder delivery without changing invitation status", async () => {
+    const { service, prisma, notifications } = buildService({
+      quiz: publishedQuiz()
+    });
+    prisma.quizInvitation.findMany.mockResolvedValue([
+      { id: "inv-1", email: "waiting@example.com" }
+    ] as never);
+    notifications.send.mockRejectedValue(
+      new Error("mail unavailable") as never
+    );
+
+    await expect(
+      service.remind("quiz-1", { emails: ["waiting@example.com"] })
+    ).resolves.toEqual({
+      sent: 0,
+      failed: 1,
+      skipped: 0,
+      failedEmails: [
+        { email: "waiting@example.com", reason: INVITE_DELIVERY_REASON }
+      ]
+    });
+    expect(prisma.quizInvitation.update).not.toHaveBeenCalled();
+  });
+});
+
 describe("QuizService - analytics", () => {
   it("reports zero completion and no average when nobody is invited", async () => {
     const { service } = buildService({ quiz: publishedQuiz() });
@@ -785,6 +911,16 @@ describe("QuizService", () => {
         findUnique: jest.fn().mockResolvedValue(null as never),
         create: jest.fn().mockResolvedValue({ id: "invitation-1" } as never),
         update: jest.fn().mockResolvedValue({ id: "invitation-1" } as never)
+      },
+      quiz: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: "quiz-1",
+          title: "TypeScript Foundations",
+          status: "published",
+          ends_at: new Date(Date.now() + HOUR),
+          duration_minutes: 30
+        } as never),
+        updateMany: jest.fn().mockResolvedValue({ count: 0 } as never)
       }
     };
     const notifications = {

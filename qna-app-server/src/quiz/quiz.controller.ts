@@ -30,9 +30,8 @@ import {
   InvitationSummaryDto
 } from "./dto/quiz.dto.js";
 import { CreateInvitationDto } from "./dto/create-invitation.dto.js";
-import {
-  StudentQuizStatus
-} from "./types/student-quiz-status.js";
+import { RemindInvitationsDto } from "./dto/remind-invitations.dto.js";
+import { StudentQuizStatus } from "./types/student-quiz-status.js";
 
 // Auth/role protection is wired in AppModule.configure() via the RequireAuth
 // and RequireRole("admin") middleware, applied to every route on this controller.
@@ -142,6 +141,20 @@ export class QuizController {
   @HttpCode(HttpStatus.OK)
   invite(@Param("id") id: string, @Body() dto: CreateInvitationDto) {
     return this.quizService.invite(id, dto);
+  }
+
+  @Post(":id/invitations/remind")
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: "Remind selected students with pending invitations"
+  })
+  @ApiResponse({ status: 200, description: "Reminder delivery summary" })
+  @ApiResponse({
+    status: 400,
+    description: "Validation failed or quiz has ended"
+  })
+  remind(@Param("id") id: string, @Body() dto: RemindInvitationsDto) {
+    return this.quizService.remind(id, dto);
   }
 
   @Get(":id/invitations")

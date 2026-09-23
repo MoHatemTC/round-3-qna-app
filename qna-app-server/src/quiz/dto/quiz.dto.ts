@@ -93,6 +93,15 @@ export class QuizInvitationDto {
   @ApiProperty({ type: String, nullable: true, example: null })
   accepted_at!: string | null;
 
+  @ApiProperty({ type: String, nullable: true, example: null })
+  reminded_at!: string | null;
+
+  @ApiProperty({
+    example: 0,
+    description: "Number of successfully delivered reminders"
+  })
+  reminder_count!: number;
+
   @ApiProperty({
     type: QuizInvitationUserDto,
     nullable: true,
@@ -174,7 +183,8 @@ export class QuizAnalyticsDto {
 
   @ApiProperty({
     example: 40,
-    description: "submitted_count / invited_count as a percentage; 0 when nobody is invited"
+    description:
+      "submitted_count / invited_count as a percentage; 0 when nobody is invited"
   })
   completion_rate!: number;
 
@@ -182,7 +192,8 @@ export class QuizAnalyticsDto {
     type: Number,
     nullable: true,
     example: 70,
-    description: "Mean percentage across submitted attempts; null when there are none"
+    description:
+      "Mean percentage across submitted attempts; null when there are none"
   })
   average_score!: number | null;
 }

@@ -8,9 +8,13 @@ vi.mock("@/services/services", () => ({
   getQuiz: vi.fn(),
   getQuizInvitations: vi.fn(),
   sendQuizInvitations: vi.fn(),
+  remindQuizInvitations: vi.fn(),
 }));
 
-import { getQuiz, getQuizInvitations, sendQuizInvitations } from "@/services/services";
+vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
+
+import { getQuiz, getQuizInvitations, remindQuizInvitations, sendQuizInvitations } from "@/services/services";
+import { toast } from "sonner";
 
 // POST /admin/quizzes/:id/invitations always answers 200 and reports the
 // outcome per recipient, so the page has to read the counts. Reporting a
@@ -120,6 +124,33 @@ describe("AdminQuizInvites", () => {
     vi.clearAllMocks();
     getQuiz.mockResolvedValue(publishedQuiz);
     getQuizInvitations.mockResolvedValue([]);
+    remindQuizInvitations.mockResolvedValue({ sent: 1, failed: 0, failedEmails: [] });
+    toast.success.mockClear();
+    toast.error.mockClear();
+  });
+
+  it("shows a success toast after sending invitations", async () => {
+    sendQuizInvitations.mockResolvedValue({ sent: 1, failed: 0, skipped: 0, invalid: 0, failedEmails: [] });
+    renderPage();
+    const field = await screen.findByLabelText(/student email/i);
+    fireEvent.change(field, { target: { value: "student@example.com" } });
+    fireEvent.click(screen.getByRole("button", { name: /^add$/i }));
+    fireEvent.click(screen.getByRole("button", { name: /send all invitations/i }));
+
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Invitation sent successfully"));
+  });
+
+  it("shows a success toast after sending a reminder", async () => {
+    getQuizInvitations.mockResolvedValue([
+      { id: "invite-1", email: "student@example.com", status: "sent" },
+    ]);
+    renderPage();
+
+    fireEvent.click(await screen.findByRole("button", { name: /remind students/i }));
+    fireEvent.click(screen.getByLabelText("Remind student@example.com"));
+    fireEvent.click(screen.getByRole("button", { name: "Remind" }));
+
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Reminder sent"));
   });
 
   it("reports a failed invitation as an error, not a success", async () => {

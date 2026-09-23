@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Route, Routes, useLocation } from 'react-router'
+import { Toaster } from 'sonner'
 import './App.css'
 import SplashScreen from './components/SplashScreen'
 import HomePage from './pages/HomePage'
@@ -48,6 +49,7 @@ function App() {
 
   return (
     <>
+      <Toaster position="top-right" />
       <SplashScreen visible={showSplash} />
       <Routes>
         <Route path='/' element={<HomePage />} />
