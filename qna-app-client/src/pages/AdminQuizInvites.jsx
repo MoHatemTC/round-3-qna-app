@@ -140,7 +140,6 @@ export default function AdminQuizInvites() {
                 (data.failedEmails ?? []).map(({ email: failedEmail, reason }) => [failedEmail, reason])
             );
 
-            // الاحتفاظ فقط بالإيميلات التي فشلت لإعادة عرضها للمدير مع أسبابها
             setEmails(data.failedEmails?.map(({ email: failedEmail }) => failedEmail) ?? []);
             setFailedEmailReasons(nextFailedEmailReasons);
             await loadInvitations();
@@ -194,6 +193,7 @@ export default function AdminQuizInvites() {
                             <input
                                 id="invite-email"
                                 type="text"
+                                inputMode="email"
                                 value={email}
                                 onChange={(e) => setEmail(e.target.value)}
                                 onKeyDown={handleEmailKeyDown}

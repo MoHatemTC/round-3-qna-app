@@ -330,6 +330,8 @@ export class QuizService {
           (error as { rawReason?: string })?.rawReason ??
           (error instanceof Error ? error.message : "Unknown error occurred");
 
+        this.logger.warn(`Invitation to ${email} failed: ${rawReason}`);
+
         const safeReason = MAIL_DELIVERY_ERROR;
 
         failedEmails.push({ email, reason: safeReason });
@@ -351,7 +353,6 @@ export class QuizService {
             );
           }
         } else {
-          // نحتفظ بـ rawReason هنا لأنها مخصصة للـ Logs وقاعدة البيانات داخلياً
           await this.recordFailedInvitationEmail(id, email, rawReason);
         }
       }
