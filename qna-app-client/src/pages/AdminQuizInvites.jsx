@@ -166,14 +166,14 @@ export default function AdminQuizInvites() {
                 ok: data.failed === 0 && data.sent > 0,
                 text: `Reminded ${data.sent} ${data.sent === 1 ? 'student' : 'students'}.${data.failed ? ` ${data.failed} could not be reached.` : ''}`
             });
-            if (data.sent > 0) toast.success('Invitation sent successfully');
-            if (data.failed > 0) toast.error('Failed to send invitation');
+            if (data.sent > 0) toast.success('Reminder sent');
+            if (data.failed > 0) toast.error('Reminder could not be sent');
             await loadInvitations();
             if (data.failed === 0) setShowReminderPopup(false);
             return data;
         } catch (err) {
             setError(err.message || 'Unable to send reminders.');
-            toast.error('Failed to send invitation');
+            toast.error('Reminder could not be sent');
             throw err;
         } finally {
             setReminding(false);

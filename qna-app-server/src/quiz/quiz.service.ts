@@ -20,6 +20,7 @@ import {
 import { questionProblem } from "../question/question-rules.js";
 import type { StudentQuizStatus } from "./types/student-quiz-status.js";
 import { INVITE_DELIVERY_REASON } from "../mail/mail.service.js";
+import { clientUrl } from "../config/app.config.js";
 
 // Counts the admin CMS needs to show a quiz's activation status.
 const quizCounts = {
@@ -82,36 +83,28 @@ export class QuizService {
     });
   }
 
-  findAll() {
-    return this.prisma.quiz
-      .findMany({
-        orderBy: { created_at: "desc" },
-        include: quizCounts
-      })
-      .then((quizzes) =>
-        Promise.all(quizzes.map((quiz) => this.demoteExpired(quiz)))
-      );
-  }
-
-  private async demoteExpired<
-    T extends { id: string; status: QuizStatus; ends_at: Date }
-  >(quiz: T) {
-    if (quiz.status !== QuizStatus.published || quiz.ends_at > new Date())
-      return quiz;
-    return this.prisma.quiz.update({
-      where: { id: quiz.id },
-      data: { status: QuizStatus.draft },
+  async findAll() {
+    await this.prisma.quiz.updateMany({
+      where: { status: QuizStatus.published, ends_at: { lt: new Date() } },
+      data: { status: QuizStatus.draft }
+    });
+    return this.prisma.quiz.findMany({
+      orderBy: { created_at: "desc" },
       include: quizCounts
     });
   }
 
   async findOne(id: string) {
-    let quiz = await this.prisma.quiz.findUnique({
+    await this.prisma.quiz.updateMany({
+      where: { status: QuizStatus.published, ends_at: { lt: new Date() } },
+      data: { status: QuizStatus.draft }
+    });
+    const quiz = await this.prisma.quiz.findUnique({
       where: { id },
       include: quizCounts
     });
     if (!quiz) throw new NotFoundException("Quiz not found");
-    return this.demoteExpired(quiz);
+    return quiz;
   }
 
   // Refuses publishing unless the quiz has at least one question and every
@@ -313,7 +306,7 @@ export class QuizService {
               }
             });
         invitationId = invitation.id;
-        const link = `${process.env.CLIENT_URL ?? "http://localhost:5173"}/quiz/invite/${token}`;
+        const link = `${clientUrl}/quiz/invite/${token}`;
         await this.notifications.send(
           "quiz-invitation",
           email,
@@ -399,7 +392,10 @@ export class QuizService {
       where: {
         quiz_id: id,
         status: "sent",
-        reminder_count: 0,
+        OR: [
+          { reminded_at: null },
+          { reminded_at: { lt: new Date(Date.now() - 24 * 60 * 60 * 1000) } }
+        ],
         email: { in: requestedEmails }
       },
       select: { id: true, email: true }
@@ -423,7 +419,7 @@ export class QuizService {
             durationMinutes: quiz.duration_minutes,
             deadline: quiz.ends_at
           },
-          `${process.env.CLIENT_URL ?? "http://localhost:5173"}/dashboard`,
+          `${clientUrl}/dashboard`,
           invitation.id
         );
         await this.prisma.quizInvitation.update({

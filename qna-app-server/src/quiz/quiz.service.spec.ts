@@ -8,6 +8,7 @@ import {
 } from "../mail/mail.service.js";
 import type { CreateQuizDto } from "./dto/create-quiz.dto.js";
 import type { UpdateQuizDto } from "./dto/update-quiz.dto.js";
+import type { NotificationService } from "../notifications/notifications.service.js";
 
 // The service is driven through a hand-rolled Prisma double: every test states
 // exactly which rows the database holds, so the assertions are about the
@@ -47,6 +48,17 @@ function buildPrisma({
       create: jest.fn(async ({ data }: any) => ({ id: "new-quiz", ...data })),
       findMany: jest.fn(async (_args?: DbArgs) => (quiz ? [quiz] : [])),
       findUnique: jest.fn(async () => quiz ?? null),
+      updateMany: jest.fn(async ({ where, data }: any) => {
+        if (
+          quiz &&
+          quiz.status === where.status &&
+          quiz.ends_at &&
+          quiz.ends_at < where.ends_at.lt
+        ) {
+          Object.assign(quiz, data);
+        }
+        return { count: quiz ? 1 : 0 };
+      }),
       update: jest.fn(async ({ where, data }: any) => ({
         ...quiz,
         ...data,
@@ -80,7 +92,9 @@ function buildPrisma({
 
 function buildService(options?: Parameters<typeof buildPrisma>[0]) {
   const prisma = buildPrisma(options);
-  const notifications = { send: jest.fn(async () => undefined) };
+  const notifications = {
+    send: jest.fn<NotificationService["send"]>(async () => undefined)
+  };
   const service = new QuizService(prisma as never, notifications as never);
   return { service, prisma, notifications };
 }
@@ -224,9 +238,12 @@ describe("QuizService - read", () => {
     const quiz = await service.findOne("quiz-1");
 
     expect(quiz.status).toBe("draft");
-    expect(prisma.quiz.update).toHaveBeenCalledWith(
+    expect(prisma.quiz.updateMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { id: "quiz-1" },
+        where: expect.objectContaining({
+          status: "published",
+          ends_at: { lt: expect.any(Date) }
+        }),
         data: { status: "draft" }
       })
     );
@@ -243,8 +260,12 @@ describe("QuizService - read", () => {
     const quizzes = await service.findAll();
 
     expect(quizzes[0].status).toBe("draft");
-    expect(prisma.quiz.update).toHaveBeenCalledWith(
+    expect(prisma.quiz.updateMany).toHaveBeenCalledWith(
       expect.objectContaining({
+        where: expect.objectContaining({
+          status: "published",
+          ends_at: { lt: expect.any(Date) }
+        }),
         data: { status: "draft" }
       })
     );
@@ -772,7 +793,10 @@ describe("QuizService - remind", () => {
       where: {
         quiz_id: "quiz-1",
         status: "sent",
-        reminder_count: 0,
+        OR: [
+          { reminded_at: null },
+          { reminded_at: { lt: expect.any(Date) } }
+        ],
         email: { in: ["waiting@example.com", "accepted@example.com"] }
       },
       select: { id: true, email: true }
@@ -887,6 +911,16 @@ describe("QuizService", () => {
         findUnique: jest.fn().mockResolvedValue(null as never),
         create: jest.fn().mockResolvedValue({ id: "invitation-1" } as never),
         update: jest.fn().mockResolvedValue({ id: "invitation-1" } as never)
+      },
+      quiz: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: "quiz-1",
+          title: "TypeScript Foundations",
+          status: "published",
+          ends_at: new Date(Date.now() + HOUR),
+          duration_minutes: 30
+        } as never),
+        updateMany: jest.fn().mockResolvedValue({ count: 0 } as never)
       }
     };
     const notifications = {

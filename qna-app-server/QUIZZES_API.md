@@ -248,6 +248,36 @@ Status: `200 OK`. Body: the [quiz object](#quiz-object).
 | --- | --- |
 | `404` | `{ "message": "Quiz not found", "error": "Not Found", "statusCode": 404 }` |
 
+### POST /admin/quizzes/{id}/invitations/remind
+
+Sends a reminder to selected students whose invitation is still `sent` and has
+not received a reminder during the last 24 hours. Reminders can be sent again
+after the cooldown; `reminder_count` tracks the number delivered.
+
+#### Request
+
+```json
+{ "emails": ["student@example.com"] }
+```
+
+#### Success response
+
+Status: `200 OK`.
+
+```json
+{
+  "sent": 1,
+  "failed": 0,
+  "skipped": 0,
+  "failedEmails": []
+}
+```
+
+`failedEmails` contains `{ "email": string, "reason": string }` entries for
+reminders that could not be delivered. `skipped` includes requested addresses
+that are not eligible because they are not sent invitations or are still in
+the 24-hour cooldown.
+
 ---
 
 ### PUT /admin/quizzes/{id}

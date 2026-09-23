@@ -150,7 +150,7 @@ describe("AdminQuizInvites", () => {
     fireEvent.click(screen.getByLabelText("Remind student@example.com"));
     fireEvent.click(screen.getByRole("button", { name: "Remind" }));
 
-    await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Invitation sent successfully"));
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Reminder sent"));
   });
 
   it("reports a failed invitation as an error, not a success", async () => {
