@@ -1,15 +1,81 @@
 # Student Demo Run Sheet
 
 ## Test account
-- Email: `<fill in your seeded demo student email>`
-- Password: `<fill in>`
+- Email: `avery.morgan@example.com`
+- Password: `123456789`
 - Must be: email-verified, invited to the demo quiz below
 
 ## Quiz used
-- Title: `<fill in demo quiz name>`
-- Questions: `<count>`
-- Duration: `<minutes>`
-
+- Title:"TypeScript Foundations",
+- Duration: 35 minutes,
+- Questions: [
+      [
+        "Which keyword creates a type alias?",
+        ["type", "alias", "typedef", "shape"],
+        0
+      ],
+      [
+        "What does a union type describe?",
+        [
+          "One of several allowed types",
+          "Only object types",
+          "A runtime class",
+          "A database relation"
+        ],
+        0
+      ],
+      [
+        "Which operator performs optional chaining?",
+        ["?.", "??", "::", "=>"],
+        0
+      ],
+      [
+        "What does `unknown` require before most operations?",
+        ["Type narrowing", "A constructor", "A decorator", "A cast to any"],
+        0
+      ],
+      [
+        "Which utility type makes every property optional?",
+        ["Partial<T>", "Optional<T>", "Maybe<T>", "Loose<T>"],
+        0
+      ],
+      [
+        "What is a generic primarily used for?",
+        [
+          "Reusable type-safe code",
+          "Encrypting values",
+          "Creating database indexes",
+          "Loading modules"
+        ],
+        0
+      ],
+      [
+        "Which keyword marks a class property as read-only?",
+        ["readonly", "constant", "fixed", "immutable"],
+        0
+      ],
+      [
+        "What does type inference do?",
+        [
+          "Derives types from values and usage",
+          "Runs tests",
+          "Validates JSON",
+          "Compiles SQL"
+        ],
+        0
+      ],
+      [
+        "Which type represents a function that never returns?",
+        ["never", "void", "undefined", "empty"],
+        0
+      ],
+      [
+        "`strict` mode turns on `strictNullChecks`.",
+        ["True", "False"],
+        0,
+        "true_false"
+      ]
+    ]
 ## Steps
 1. Go to `/login`, sign in with the demo account.
 2. Land on `/dashboard` — confirm the demo quiz card is visible with state "Not Started".
