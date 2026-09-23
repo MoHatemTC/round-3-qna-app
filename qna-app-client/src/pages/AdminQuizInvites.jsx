@@ -193,6 +193,7 @@ export default function AdminQuizInvites() {
                             <input
                                 id="invite-email"
                                 type="text"
+                                inputMode="email"
                                 value={email}
                                 onChange={(e) => setEmail(e.target.value)}
                                 onKeyDown={handleEmailKeyDown}
