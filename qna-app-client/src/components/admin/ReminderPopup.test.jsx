@@ -30,4 +30,14 @@ describe("ReminderPopup", () => {
 
     expect(onRemind).toHaveBeenCalledWith(["waiting@example.com"]);
   });
+
+  it("optimistically removes selected students while reminding", () => {
+    const onRemind = vi.fn(() => new Promise(() => {}));
+    render(<ReminderPopup invitations={invitations} onClose={vi.fn()} onRemind={onRemind} />);
+
+    fireEvent.click(screen.getByLabelText("Remind waiting@example.com"));
+    fireEvent.click(screen.getByRole("button", { name: "Remind" }));
+
+    expect(screen.queryByText("waiting@example.com")).not.toBeInTheDocument();
+  });
 });

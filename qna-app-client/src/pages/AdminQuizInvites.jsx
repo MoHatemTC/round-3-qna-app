@@ -8,6 +8,7 @@ import InvitationTable from '@/components/admin/InvitationTable';
 import { Badge } from '@/components/ui/badge';
 import { formatDateTime, hasEnded } from '@/lib/quizStatus';
 import { useNow } from '@/hooks/useNow';
+import { toast } from 'sonner';
 import { AdminCard, AdminPageHeader, adminInput, adminPrimaryButton, adminSecondaryButton } from '@/components/admin/AdminLayout';
 import { summarizeInvitationResult } from '@/lib/invitationSummary';
 import ReminderPopup from '@/components/admin/ReminderPopup';
@@ -145,9 +146,12 @@ export default function AdminQuizInvites() {
 
             setEmails(data.failedEmails?.map(({ email: failedEmail }) => failedEmail) ?? []);
             setFailedEmailReasons(nextFailedEmailReasons);
+            if (data.sent > 0) toast.success('Invitation sent successfully');
+            if (data.failed > 0 || data.invalid > 0) toast.error('Failed to send invitation');
             await loadInvitations();
         } catch (err) {
             setError(err.message || 'Something went wrong');
+            toast.error('Failed to send invitation');
         } finally {
             setLoading(false);
         }
@@ -162,10 +166,15 @@ export default function AdminQuizInvites() {
                 ok: data.failed === 0 && data.sent > 0,
                 text: `Reminded ${data.sent} ${data.sent === 1 ? 'student' : 'students'}.${data.failed ? ` ${data.failed} could not be reached.` : ''}`
             });
-            setShowReminderPopup(false);
+            if (data.sent > 0) toast.success('Invitation sent successfully');
+            if (data.failed > 0) toast.error('Failed to send invitation');
             await loadInvitations();
+            if (data.failed === 0) setShowReminderPopup(false);
+            return data;
         } catch (err) {
             setError(err.message || 'Unable to send reminders.');
+            toast.error('Failed to send invitation');
+            throw err;
         } finally {
             setReminding(false);
         }
@@ -270,18 +279,13 @@ export default function AdminQuizInvites() {
                 {error && <p role="alert" className="mt-4 text-sm text-destructive">{error}</p>}
             </AdminCard>
 
-            <h2 className="mb-3 mt-8 text-lg font-bold">
-                Invitations{!invitationsLoading && !invitationsError ? ` (${invitations.length})` : ''}
-            </h2>
-            <AdminCard className="overflow-hidden">
-                <InvitationTable
-                    invitations={invitations}
-                    loading={invitationsLoading}
-                    error={invitationsError}
-                />
-            </AdminCard>
 
-            <div className="mt-5 flex justify-end">
+            <div className="flex justify-between items-center">
+
+                <h2 className="mb-3 mt-8 text-lg font-bold">
+                    Invitations{!invitationsLoading && !invitationsError ? ` (${invitations.length})` : ''}
+                </h2>
+
                 <button
                     type="button"
                     className={adminSecondaryButton}
@@ -290,7 +294,17 @@ export default function AdminQuizInvites() {
                 >
                     <Mail /> Remind Students
                 </button>
+
             </div>
+
+
+            <AdminCard className="overflow-hidden">
+                <InvitationTable
+                    invitations={invitations}
+                    loading={invitationsLoading}
+                    error={invitationsError}
+                />
+            </AdminCard>
 
             {showReminderPopup && (
                 <ReminderPopup

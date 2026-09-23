@@ -396,7 +396,12 @@ export class QuizService {
       ...new Set(dto.emails.map((email) => email.trim().toLowerCase()))
     ];
     const invitations = await this.prisma.quizInvitation.findMany({
-      where: { quiz_id: id, status: "sent", email: { in: requestedEmails } },
+      where: {
+        quiz_id: id,
+        status: "sent",
+        reminder_count: 0,
+        email: { in: requestedEmails }
+      },
       select: { id: true, email: true }
     });
     const pendingByEmail = new Map(
@@ -421,6 +426,10 @@ export class QuizService {
           `${process.env.CLIENT_URL ?? "http://localhost:5173"}/dashboard`,
           invitation.id
         );
+        await this.prisma.quizInvitation.update({
+          where: { id: invitation.id },
+          data: { reminded_at: new Date(), reminder_count: { increment: 1 } }
+        });
         sent++;
       } catch (error) {
         failed++;
@@ -452,6 +461,8 @@ export class QuizService {
         status: true,
         sent_at: true,
         accepted_at: true,
+        reminded_at: true,
+        reminder_count: true,
         user: {
           select: {
             id: true,

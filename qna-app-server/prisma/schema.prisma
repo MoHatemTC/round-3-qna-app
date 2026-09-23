@@ -162,6 +162,8 @@ model QuizInvitation {
   sent_at     DateTime?        @default(now())
   expires_at  DateTime?
   accepted_at DateTime?
+  reminded_at DateTime?
+  reminder_count Int @default(0)
   created_at  DateTime         @default(now())
   quiz        Quiz             @relation(fields: [quiz_id], references: [id], onDelete: Cascade)
   user        User?            @relation(fields: [user_id], references: [id], onDelete: Cascade)

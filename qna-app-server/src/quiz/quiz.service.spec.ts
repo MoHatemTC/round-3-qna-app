@@ -772,6 +772,7 @@ describe("QuizService - remind", () => {
       where: {
         quiz_id: "quiz-1",
         status: "sent",
+        reminder_count: 0,
         email: { in: ["waiting@example.com", "accepted@example.com"] }
       },
       select: { id: true, email: true }
@@ -783,6 +784,10 @@ describe("QuizService - remind", () => {
       expect.stringContaining("/dashboard"),
       "inv-1"
     );
+    expect(prisma.quizInvitation.update).toHaveBeenCalledWith({
+      where: { id: "inv-1" },
+      data: { reminded_at: expect.any(Date), reminder_count: { increment: 1 } }
+    });
     expect(summary).toEqual({
       sent: 1,
       failed: 0,

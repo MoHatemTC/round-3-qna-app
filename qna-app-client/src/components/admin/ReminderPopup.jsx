@@ -6,7 +6,10 @@ import { adminInput } from "@/components/admin/AdminLayout";
 export default function ReminderPopup({ invitations, onClose, onRemind, loading = false }) {
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState(() => new Set());
-  const pendingInvitations = invitations.filter((invitation) => invitation.status === "sent");
+  const [optimisticallyReminded, setOptimisticallyReminded] = useState(() => new Set());
+  const pendingInvitations = invitations.filter((invitation) =>
+    invitation.status === "sent" && !invitation.reminded_at && !invitation.reminder_count && !optimisticallyReminded.has(invitation.email)
+  );
   const visibleInvitations = pendingInvitations.filter((invitation) =>
     invitation.email.toLowerCase().includes(query.trim().toLowerCase())
   );
@@ -18,6 +21,27 @@ export default function ReminderPopup({ invitations, onClose, onRemind, loading 
       else next.add(email);
       return next;
     });
+  }
+
+  async function handleRemind() {
+    const selectedEmails = [...selected];
+    setOptimisticallyReminded((current) => new Set([...current, ...selectedEmails]));
+    setSelected(new Set());
+
+    try {
+      const result = await onRemind(selectedEmails);
+      const failedEmails = new Set((result?.failedEmails ?? []).map(({ email }) => email));
+      if (failedEmails.size > 0) {
+        setOptimisticallyReminded((current) => new Set(
+          [...current].filter((email) => !failedEmails.has(email))
+        ));
+      }
+    } catch (error) {
+      setOptimisticallyReminded((current) => new Set(
+        [...current].filter((email) => !selectedEmails.includes(email))
+      ));
+      throw error;
+    }
   }
 
   return (
@@ -70,7 +94,7 @@ export default function ReminderPopup({ invitations, onClose, onRemind, loading 
 
         <footer className="mt-5 flex justify-end gap-2">
           <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
-          <Button type="button" onClick={() => onRemind([...selected])} disabled={loading || selected.size === 0}>
+          <Button type="button" onClick={handleRemind} disabled={loading || selected.size === 0}>
             {loading ? "Sending..." : "Remind"}
           </Button>
         </footer>
