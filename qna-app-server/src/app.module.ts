@@ -17,6 +17,7 @@ import { QuizModule } from "./quiz/quiz.module.js";
 import { QuizController } from "./quiz/quiz.controller.js";
 import { QuestionModule } from "./question/question.module.js";
 import { QuestionController } from "./question/question.controller.js";
+import { QuestionBankController } from "./question/question-bank.controller.js";
 import { AttemptQuestionController } from "./question/attempt-question.controller.js";
 import { AttemptModule } from "./attempt/attempt.module.js";
 import { AttemptController } from "./attempt/attempt.controller.js";
@@ -45,6 +46,7 @@ export class AppModule implements NestModule {
         { path: "auth/session", method: RequestMethod.GET },
         QuizController,
         QuestionController,
+        QuestionBankController,
         AttemptQuestionController,
         AttemptController,
         StudentController
@@ -56,7 +58,8 @@ export class AppModule implements NestModule {
         { path: "auth/admin-panel", method: RequestMethod.GET },
         { path: "attempts/admin/attempts", method: RequestMethod.GET },
         QuizController,
-        QuestionController
+        QuestionController,
+        QuestionBankController
       );
 
     consumer

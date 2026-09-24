@@ -198,13 +198,25 @@ async function seedQuiz(
     );
     const question = await prisma.question.upsert({
       where: { id: questionId },
-      update: { quiz_id: quizId, type, text, points: 1 },
+      update: { type, text, points: 1, category: quizRecord.title },
       create: {
         id: questionId,
-        quiz_id: quizId,
         type,
         text,
-        points: 1
+        points: 1,
+        category: quizRecord.title,
+        created_by: adminId
+      }
+    });
+    await prisma.quizQuestion.upsert({
+      where: {
+        quiz_id_question_id: { quiz_id: quizId, question_id: questionId }
+      },
+      update: { position: questionIndex },
+      create: {
+        quiz_id: quizId,
+        question_id: questionId,
+        position: questionIndex
       }
     });
 

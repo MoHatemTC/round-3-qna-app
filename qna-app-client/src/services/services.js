@@ -71,3 +71,56 @@ export function markAllNotificationsRead() {
 export function getAdminAttempts() {
   return api.get("/attempts/admin/attempts")
 }
+
+// A quiz's questions. Each one is a question-bank question linked to the quiz.
+
+export function getQuizQuestions(quizId) {
+  return api.get(`/admin/quizzes/${quizId}/questions`)
+}
+
+// Creates the question in the bank and adds it to the end of the quiz.
+export function createQuizQuestion(quizId, data) {
+  return api.post(`/admin/quizzes/${quizId}/questions`, data)
+}
+
+export function attachBankQuestions(quizId, questionIds) {
+  return api.post(`/admin/quizzes/${quizId}/questions/attach`, { question_ids: questionIds })
+}
+
+export function reorderQuizQuestions(quizId, questionIds) {
+  return api.post(`/admin/quizzes/${quizId}/questions/reorder`, { question_ids: questionIds })
+}
+
+// Edits the bank question, so every quiz using it changes.
+export function updateQuizQuestion(quizId, questionId, data) {
+  return api.put(`/admin/quizzes/${quizId}/questions/${questionId}`, data)
+}
+
+// Removes the question from this quiz only; it stays in the bank.
+export function removeQuizQuestion(quizId, questionId) {
+  return api.delete(`/admin/quizzes/${quizId}/questions/${questionId}`)
+}
+
+// The question bank.
+
+export function searchQuestionBank(queryString) {
+  return api.get(`/admin/questions?${queryString}`)
+}
+
+export function getQuestionBankFacets() {
+  return api.get("/admin/questions/facets")
+}
+
+export function createBankQuestion(data) {
+  return api.post("/admin/questions", data)
+}
+
+export function updateBankQuestion(id, data) {
+  return api.put(`/admin/questions/${id}`, data)
+}
+
+// Soft delete. Without force the server refuses (409) while a published quiz
+// that hasn't ended still uses the question.
+export function deleteBankQuestion(id, { force = false } = {}) {
+  return api.delete(`/admin/questions/${id}${force ? "?force=true" : ""}`)
+}

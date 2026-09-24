@@ -18,15 +18,19 @@ export class AnswerKeyService {
   constructor(private prisma: PrismaService) {}
 
   async getAnswerKey(quizId: string): Promise<Map<string, AnswerKeyEntry>> {
-    const questions = await this.prisma.question.findMany({
+    const links = await this.prisma.quizQuestion.findMany({
       where: { quiz_id: quizId },
       select: {
-        id: true,
-        type: true,
-        points: true,
-        options: { select: { id: true, text: true, is_correct: true } }
+        question: {
+          select: {
+            id: true,
+            type: true,
+            points: true,
+            options: { select: { id: true, text: true, is_correct: true } }
+          }
+        }
       }
     });
-    return new Map(questions.map((question) => [question.id, question]));
+    return new Map(links.map(({ question }) => [question.id, question]));
   }
 }

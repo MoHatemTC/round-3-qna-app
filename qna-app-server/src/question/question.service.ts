@@ -5,18 +5,21 @@ import {
   NotFoundException
 } from "@nestjs/common";
 import { PrismaService } from "../prisma.service.js";
-import {
-  CreateQuestionDto,
-  QuestionOptionInputDto
-} from "./dto/create-question.dto.js";
+import { CreateQuestionDto } from "./dto/create-question.dto.js";
 import { UpdateQuestionDto } from "./dto/update-question.dto.js";
 import {
-  AttemptStatus,
-  QuestionType,
-  QuizStatus,
-  Role
-} from "../generated/prisma/enums.js";
-import { questionProblem } from "./question-rules.js";
+  AttachQuestionsDto,
+  ReorderQuestionsDto
+} from "./dto/quiz-question-links.dto.js";
+import { AttemptStatus, QuizStatus, Role } from "../generated/prisma/enums.js";
+import {
+  LIVE_LOCK_MESSAGE,
+  QuestionBankService,
+  bankQuestionInclude,
+  isQuizLive,
+  optionsCreate,
+  questionFields
+} from "./question-bank.service.js";
 
 // What a student may see of a question while taking a quiz. is_correct is
 // deliberately absent - it is never read from the database for this shape.
@@ -31,17 +34,15 @@ export const attemptQuestionSelect = {
   }
 } as const;
 
+// A quiz's questions are bank questions linked through quiz_questions. These
+// routes manage the links; editing a question here edits the bank copy, which
+// every quiz using it shares.
 @Injectable()
 export class QuestionService {
-  constructor(private prisma: PrismaService) {}
-
-  private validateOptions(
-    type: QuestionType,
-    options: QuestionOptionInputDto[]
-  ) {
-    const problem = questionProblem(type, options);
-    if (problem) throw new BadRequestException(problem);
-  }
+  constructor(
+    private prisma: PrismaService,
+    private bank: QuestionBankService
+  ) {}
 
   private async assertQuizExists(quizId: string) {
     const quiz = await this.prisma.quiz.findUnique({ where: { id: quizId } });
@@ -53,36 +54,40 @@ export class QuestionService {
   // they're being graded on, so questions are locked while a quiz is live.
   private async assertEditable(quizId: string) {
     const quiz = await this.assertQuizExists(quizId);
-    const now = new Date();
-    if (
-      quiz.status === QuizStatus.published &&
-      quiz.starts_at <= now &&
-      now <= quiz.ends_at
-    ) {
-      throw new BadRequestException(
-        "This quiz is live right now, so its questions are locked. Unpublish it or wait until it closes to make changes."
-      );
-    }
+    if (isQuizLive(quiz)) throw new BadRequestException(LIVE_LOCK_MESSAGE);
+    return quiz;
   }
 
-  private async findOwned(quizId: string, questionId: string) {
-    const question = await this.prisma.question.findUnique({
-      where: { id: questionId },
-      include: { options: true }
+  private async findLink(quizId: string, questionId: string) {
+    const link = await this.prisma.quizQuestion.findUnique({
+      where: {
+        quiz_id_question_id: { quiz_id: quizId, question_id: questionId }
+      }
     });
-    if (!question || question.quiz_id !== quizId) {
-      throw new NotFoundException("Question not found");
-    }
-    return question;
+    if (!link) throw new NotFoundException("Question not found");
+    return link;
+  }
+
+  private async nextPosition(quizId: string) {
+    const last = await this.prisma.quizQuestion.aggregate({
+      where: { quiz_id: quizId },
+      _max: { position: true }
+    });
+    return (last._max.position ?? -1) + 1;
   }
 
   async findAll(quizId: string) {
     await this.assertQuizExists(quizId);
-    return this.prisma.question.findMany({
+    const links = await this.prisma.quizQuestion.findMany({
       where: { quiz_id: quizId },
-      include: { options: true },
-      orderBy: { created_at: "asc" }
+      include: { question: { include: bankQuestionInclude } },
+      orderBy: [{ position: "asc" }, { added_at: "asc" }]
     });
+    return links.map((link) => ({
+      ...link.question,
+      quiz_id: quizId,
+      position: link.position
+    }));
   }
 
   // Question text, type and options for a quiz being attempted. Admins may
@@ -111,75 +116,135 @@ export class QuestionService {
     return this.getAttemptQuestions(quizId);
   }
 
-  getAttemptQuestions(quizId: string) {
-    return this.prisma.question.findMany({
+  async getAttemptQuestions(quizId: string) {
+    const links = await this.prisma.quizQuestion.findMany({
       where: { quiz_id: quizId },
-      select: attemptQuestionSelect,
-      orderBy: { created_at: "asc" }
+      select: { question: { select: attemptQuestionSelect } },
+      orderBy: [{ position: "asc" }, { added_at: "asc" }]
     });
+    return links.map((link) => link.question);
   }
 
-  async create(quizId: string, dto: CreateQuestionDto) {
+  // "Create new question" from inside a quiz: the question goes into the bank
+  // and onto the end of this quiz in one write.
+  async create(quizId: string, dto: CreateQuestionDto, createdBy: string) {
     await this.assertEditable(quizId);
-    this.validateOptions(dto.type, dto.options);
+    this.bank.validateOptions(dto);
+    const position = await this.nextPosition(quizId);
 
-    return this.prisma.question.create({
+    const question = await this.prisma.question.create({
       data: {
-        quiz_id: quizId,
-        type: dto.type,
-        text: dto.text,
-        points: dto.points,
-        options: {
-          create: dto.options.map((o) => ({
-            text: o.text,
-            is_correct: o.is_correct
-          }))
-        }
+        ...questionFields(dto),
+        created_by: createdBy,
+        options: optionsCreate(dto),
+        quizzes: { create: { quiz_id: quizId, position } }
       },
-      include: { options: true }
+      include: bankQuestionInclude
     });
+    return { ...question, quiz_id: quizId, position };
   }
 
-  async update(quizId: string, questionId: string, dto: UpdateQuestionDto) {
-    await this.findOwned(quizId, questionId);
+  // "Select from question bank": link existing questions onto the end of the
+  // quiz. Questions already in the quiz are skipped rather than duplicated.
+  async attach(quizId: string, dto: AttachQuestionsDto) {
     await this.assertEditable(quizId);
-    this.validateOptions(dto.type, dto.options);
 
-    return this.prisma.$transaction(async (tx) => {
-      await tx.questionOption.deleteMany({
-        where: { question_id: questionId }
-      });
-      return tx.question.update({
-        where: { id: questionId },
-        data: {
-          type: dto.type,
-          text: dto.text,
-          points: dto.points,
-          options: {
-            create: dto.options.map((o) => ({
-              text: o.text,
-              is_correct: o.is_correct
-            }))
-          }
-        },
-        include: { options: true }
-      });
+    const found = await this.prisma.question.findMany({
+      where: { id: { in: dto.question_ids }, is_active: true },
+      select: { id: true }
     });
-  }
-
-  async remove(quizId: string, questionId: string) {
-    await this.findOwned(quizId, questionId);
-    await this.assertEditable(quizId);
-    const quiz = await this.prisma.quiz.findUnique({
-      where: { id: quizId },
-      include: { _count: { select: { questions: true } } }
-    });
-    if (quiz?.status === QuizStatus.published && quiz._count.questions <= 1) {
-      throw new BadRequestException(
-        "A published quiz needs at least one question. Unpublish it before removing its last question."
+    if (found.length !== dto.question_ids.length) {
+      const missing = dto.question_ids.length - found.length;
+      throw new NotFoundException(
+        `${missing} of the selected questions ${missing === 1 ? "is" : "are"} no longer in the question bank. Refresh and try again.`
       );
     }
-    await this.prisma.question.delete({ where: { id: questionId } });
-    return { message: "Question deleted successfully" };
+
+    const existing = await this.prisma.quizQuestion.findMany({
+      where: { quiz_id: quizId, question_id: { in: dto.question_ids } },
+      select: { question_id: true }
+    });
+    const alreadyLinked = new Set(existing.map((link) => link.question_id));
+    const toAdd = dto.question_ids.filter((id) => !alreadyLinked.has(id));
+
+    if (toAdd.length) {
+      const start = await this.nextPosition(quizId);
+      await this.prisma.quizQuestion.createMany({
+        data: toAdd.map((questionId, index) => ({
+          quiz_id: quizId,
+          question_id: questionId,
+          position: start + index
+        })),
+        skipDuplicates: true
+      });
+    }
+
+    return {
+      added: toAdd.length,
+      skipped: alreadyLinked.size,
+      questions: await this.findAll(quizId)
+    };
+  }
+
+  async reorder(quizId: string, dto: ReorderQuestionsDto) {
+    await this.assertEditable(quizId);
+    const links = await this.prisma.quizQuestion.findMany({
+      where: { quiz_id: quizId },
+      select: { question_id: true }
+    });
+    const current = new Set(links.map((link) => link.question_id));
+    const sameSet =
+      dto.question_ids.length === current.size &&
+      dto.question_ids.every((id) => current.has(id));
+    if (!sameSet) {
+      throw new BadRequestException(
+        "The new order must list every question in this quiz exactly once. Refresh and try again."
+      );
+    }
+
+    await this.prisma.$transaction(
+      dto.question_ids.map((questionId, position) =>
+        this.prisma.quizQuestion.update({
+          where: {
+            quiz_id_question_id: { quiz_id: quizId, question_id: questionId }
+          },
+          data: { position }
+        })
+      )
+    );
+    return this.findAll(quizId);
+  }
+
+  // Edits the bank question, so the change shows up in every quiz using it.
+  async update(quizId: string, questionId: string, dto: UpdateQuestionDto) {
+    const link = await this.findLink(quizId, questionId);
+    await this.assertEditable(quizId);
+    const question = await this.bank.update(questionId, dto);
+    return { ...question, quiz_id: quizId, position: link.position };
+  }
+
+  // Takes the question out of this quiz only. It stays in the bank.
+  async remove(quizId: string, questionId: string) {
+    await this.findLink(quizId, questionId);
+    const quiz = await this.assertEditable(quizId);
+    if (quiz.status === QuizStatus.published) {
+      const count = await this.prisma.quizQuestion.count({
+        where: { quiz_id: quizId }
+      });
+      if (count <= 1) {
+        throw new BadRequestException(
+          "A published quiz needs at least one question. Unpublish it before removing its last question."
+        );
+      }
+    }
+    await this.prisma.quizQuestion.delete({
+      where: {
+        quiz_id_question_id: { quiz_id: quizId, question_id: questionId }
+      }
+    });
+    return {
+      message:
+        "Question removed from this quiz. It is still in the question bank."
+    };
   }
 }

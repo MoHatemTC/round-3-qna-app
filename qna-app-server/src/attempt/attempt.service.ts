@@ -306,7 +306,7 @@ export class AttemptService {
       orderBy: { created_at: "asc" }
     });
     const questions = await this.prisma.question.findMany({
-      where: { quiz_id: attempt.quiz_id },
+      where: { quizzes: { some: { quiz_id: attempt.quiz_id } } },
       select: { points: true }
     });
 

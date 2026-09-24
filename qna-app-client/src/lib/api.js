@@ -16,6 +16,7 @@ async function request(path, options = {}) {
     )
     error.status = res.status
     error.details = Array.isArray(body?.message) ? body.message : null
+    error.body = body
     throw error
   }
 

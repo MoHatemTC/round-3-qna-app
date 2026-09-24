@@ -1,5 +1,5 @@
 import { Link, NavLink, Outlet } from "react-router"
-import { ClipboardList, House, LayoutDashboard, LifeBuoy, ListChecks } from "lucide-react"
+import { ClipboardList, House, LayoutDashboard, Library, LifeBuoy, ListChecks } from "lucide-react"
 import { cn } from "@/lib/utils"
 import AccountMenu from "@/components/AccountMenu"
 
@@ -10,6 +10,7 @@ const navItems = [
   { to: "/", label: "Home", icon: House, description: "Back to the website" },
   { to: "/admin-panel", label: "Dashboard", icon: LayoutDashboard, end: true },
   { to: "/admin-panel/quizzes", label: "Quizzes", icon: ClipboardList },
+  { to: "/admin-panel/question-bank", label: "Question bank", icon: Library },
   { to: "/admin-panel/attempts", label: "Attempts & results", icon: ListChecks },
 ]
 

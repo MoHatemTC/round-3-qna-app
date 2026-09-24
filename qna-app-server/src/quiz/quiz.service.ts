@@ -98,24 +98,31 @@ export class QuizService {
   }
 
   // Refuses publishing unless the quiz has at least one question and every
-  // question is well-formed (right option count, exactly one correct answer).
+  // question is well-formed (right option count, exactly one correct answer)
+  // and still in the question bank.
   private async assertPublishable(quizId: string) {
-    const questions = await this.prisma.question.findMany({
+    const links = await this.prisma.quizQuestion.findMany({
       where: { quiz_id: quizId },
       select: {
-        text: true,
-        type: true,
-        options: { select: { is_correct: true } }
+        question: {
+          select: {
+            type: true,
+            is_active: true,
+            options: { select: { is_correct: true } }
+          }
+        }
       },
-      orderBy: { created_at: "asc" }
+      orderBy: [{ position: "asc" }, { added_at: "asc" }]
     });
-    if (questions.length === 0) {
+    if (links.length === 0) {
       throw new BadRequestException(NEEDS_QUESTION_MESSAGE);
     }
-    const invalid = questions
-      .map((question, index) => ({
+    const invalid = links
+      .map(({ question }, index) => ({
         index,
-        problem: questionProblem(question.type, question.options)
+        problem: question.is_active
+          ? questionProblem(question.type, question.options)
+          : "it was deleted from the question bank - remove it from this quiz"
       }))
       .filter((item) => item.problem);
     if (invalid.length) {

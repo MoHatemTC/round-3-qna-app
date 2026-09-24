@@ -33,6 +33,7 @@ type QuizRow = {
 type StoredQuestion = {
   text: string;
   type: QuestionType;
+  is_active?: boolean;
   options: { is_correct: boolean }[];
 };
 
@@ -55,8 +56,12 @@ function buildPrisma({
       })),
       delete: jest.fn(async (_args?: DbArgs) => quiz)
     },
-    question: {
-      findMany: jest.fn(async (_args?: DbArgs) => questions)
+    quizQuestion: {
+      findMany: jest.fn(async (_args?: DbArgs) =>
+        questions.map((question) => ({
+          question: { is_active: true, ...question }
+        }))
+      )
     },
     quizInvitation: {
       findMany: jest.fn(async (_args?: DbArgs) => [] as unknown[]),
@@ -298,7 +303,7 @@ describe("QuizService - update", () => {
       status: "published"
     } as UpdateQuizDto);
 
-    expect(prisma.question.findMany).not.toHaveBeenCalled();
+    expect(prisma.quizQuestion.findMany).not.toHaveBeenCalled();
     expect(prisma.quiz.update).toHaveBeenCalled();
   });
 
@@ -403,7 +408,7 @@ describe("QuizService - publish gate", () => {
     );
   });
 
-  it("checks stored questions in creation order so the numbering matches the UI", async () => {
+  it("checks stored questions in quiz order so the numbering matches the UI", async () => {
     const { service, prisma } = buildService({
       quiz: draftQuiz(),
       questions: [mcqQuestion()]
@@ -411,9 +416,21 @@ describe("QuizService - publish gate", () => {
 
     await service.publish("quiz-1");
 
-    const args = prisma.question.findMany.mock.calls[0][0] as any;
+    const args = prisma.quizQuestion.findMany.mock.calls[0][0] as any;
     expect(args.where).toEqual({ quiz_id: "quiz-1" });
-    expect(args.orderBy).toEqual({ created_at: "asc" });
+    expect(args.orderBy).toEqual([{ position: "asc" }, { added_at: "asc" }]);
+  });
+
+  it("refuses a quiz that still holds a question deleted from the bank", async () => {
+    const { service, prisma } = buildService({
+      quiz: draftQuiz(),
+      questions: [mcqQuestion(), { ...mcqQuestion(), is_active: false }]
+    });
+
+    await expect(service.publish("quiz-1")).rejects.toThrow(
+      "question 2 (it was deleted from the question bank - remove it from this quiz)"
+    );
+    expect(prisma.quiz.update).not.toHaveBeenCalled();
   });
 
   it("refuses a quiz whose end time has already passed", async () => {
@@ -440,7 +457,7 @@ describe("QuizService - publish gate", () => {
     const result = await service.publish("quiz-1");
 
     expect(result.status).toBe("published");
-    expect(prisma.question.findMany).not.toHaveBeenCalled();
+    expect(prisma.quizQuestion.findMany).not.toHaveBeenCalled();
     expect(prisma.quiz.update).not.toHaveBeenCalled();
   });
 
