@@ -21,6 +21,8 @@ async function buildApp(overrides: Partial<ServiceStub> = {}) {
   const questionService: ServiceStub = {
     findAll: jest.fn(async () => []),
     create: jest.fn(async () => ({ id: "question-1" })),
+    attach: jest.fn(async () => ({ added: 1, skipped: 0, questions: [] })),
+    reorder: jest.fn(async () => []),
     update: jest.fn(async () => ({ id: "question-1" })),
     remove: jest.fn(async () => ({ message: "Question deleted successfully" })),
     ...overrides
@@ -32,6 +34,11 @@ async function buildApp(overrides: Partial<ServiceStub> = {}) {
   }).compile();
 
   const app = module.createNestApplication();
+  // Stands in for the RequireAuth middleware wired in AppModule.
+  app.use((req: any, _res: unknown, next: () => void) => {
+    req.user = { id: "admin-1", role: "admin" };
+    next();
+  });
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
@@ -80,8 +87,52 @@ describe("QuestionController", () => {
 
     expect(questionService.create).toHaveBeenCalledWith(
       "quiz-1",
-      expect.objectContaining({ text: "What is the capital of France?" })
+      expect.objectContaining({ text: "What is the capital of France?" }),
+      "admin-1"
     );
+  });
+
+  it("POST attach answers 200 and forwards the question ids", async () => {
+    const ids = ["b3f1c2b0-9c3a-4b1e-8a2a-6b6f9b6b1a10"];
+    await request(app.getHttpServer())
+      .post(`${base}/attach`)
+      .send({ question_ids: ids })
+      .expect(200);
+
+    expect(questionService.attach).toHaveBeenCalledWith("quiz-1", {
+      question_ids: ids
+    });
+  });
+
+  it("POST attach rejects ids that are not uuids", async () => {
+    await request(app.getHttpServer())
+      .post(`${base}/attach`)
+      .send({ question_ids: ["not-a-uuid"] })
+      .expect(400);
+
+    expect(questionService.attach).not.toHaveBeenCalled();
+  });
+
+  it("POST attach rejects an empty selection", async () => {
+    await request(app.getHttpServer())
+      .post(`${base}/attach`)
+      .send({ question_ids: [] })
+      .expect(400);
+  });
+
+  it("POST reorder answers 200 and forwards the new order", async () => {
+    const ids = [
+      "b3f1c2b0-9c3a-4b1e-8a2a-6b6f9b6b1a10",
+      "c3f1c2b0-9c3a-4b1e-8a2a-6b6f9b6b1a11"
+    ];
+    await request(app.getHttpServer())
+      .post(`${base}/reorder`)
+      .send({ question_ids: ids })
+      .expect(200);
+
+    expect(questionService.reorder).toHaveBeenCalledWith("quiz-1", {
+      question_ids: ids
+    });
   });
 
   it("POST answers 201 for a true_false question", async () => {

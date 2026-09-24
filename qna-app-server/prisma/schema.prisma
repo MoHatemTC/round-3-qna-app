@@ -50,6 +50,12 @@ enum QuestionType {
   true_false
 }
 
+enum QuestionDifficulty {
+  easy
+  medium
+  hard
+}
+
 model User {
   id                   String           @id @default(uuid())
   name                 String
@@ -64,6 +70,7 @@ model User {
   quizzes              Quiz[]
   attempts             Attempt[]
   invitations          QuizInvitation[]
+  questions            Question[]
 }
 
 model Quiz {
@@ -79,7 +86,7 @@ model Quiz {
   created_at       DateTime         @default(now())
   updated_at       DateTime         @updatedAt
   attempts         Attempt[]
-  questions        Question[]
+  questions        QuizQuestion[]
   invitations      QuizInvitation[]
 }
 
@@ -128,17 +135,43 @@ model EmailDeliveryLog {
   @@map("email_delivery_logs")
 }
 
+// A question lives in the bank on its own and is linked to any number of
+// quizzes through QuizQuestion. Questions are soft-deleted (is_active = false)
+// so past attempts keep pointing at the question they were graded against.
 model Question {
-  id         String           @id @default(uuid())
-  quiz_id    String
-  quiz       Quiz             @relation(fields: [quiz_id], references: [id], onDelete: Cascade)
-  type       QuestionType
-  text       String
-  points     Int              @default(1)
-  created_at DateTime         @default(now())
-  updated_at DateTime         @updatedAt
-  options    QuestionOption[]
-  answers    AttemptAnswer[]
+  id          String             @id @default(uuid())
+  type        QuestionType
+  text        String
+  points      Int                @default(1)
+  explanation String?
+  category    String?
+  difficulty  QuestionDifficulty @default(medium)
+  tags        String[]           @default([])
+  is_active   Boolean            @default(true)
+  created_by  String?
+  creator     User?              @relation(fields: [created_by], references: [id], onDelete: SetNull)
+  created_at  DateTime           @default(now())
+  updated_at  DateTime           @updatedAt
+  options     QuestionOption[]
+  answers     AttemptAnswer[]
+  quizzes     QuizQuestion[]
+
+  @@index([is_active, created_at])
+}
+
+// Which bank questions a quiz uses, and in what order. Removing a row only
+// takes the question out of that quiz; the question stays in the bank.
+model QuizQuestion {
+  quiz_id     String
+  quiz        Quiz     @relation(fields: [quiz_id], references: [id], onDelete: Cascade)
+  question_id String
+  question    Question @relation(fields: [question_id], references: [id], onDelete: Restrict)
+  position    Int
+  added_at    DateTime @default(now())
+
+  @@id([quiz_id, question_id])
+  @@index([question_id])
+  @@map("quiz_questions")
 }
 
 model QuestionOption {

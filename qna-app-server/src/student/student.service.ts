@@ -191,7 +191,9 @@ export class StudentService {
         status: { in: ["sent", "accepted"] },
         OR: [{ user_id: userId }, { email: user.email }]
       },
-      include: { quiz: { include: { questions: { select: { id: true } } } } }
+      include: {
+        quiz: { include: { _count: { select: { questions: true } } } }
+      }
     });
     if (!invitation || invitation.quiz.status !== QuizStatus.published) {
       throw new NotFoundException("Quiz not found");
@@ -207,7 +209,7 @@ export class StudentService {
       duration: invitation.quiz.duration_minutes,
       starts_at: invitation.quiz.starts_at,
       ends_at: invitation.quiz.ends_at,
-      question_count: invitation.quiz.questions.length,
+      question_count: invitation.quiz._count.questions,
       attempts_allowed: 1
     };
   }

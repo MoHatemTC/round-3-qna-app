@@ -17,6 +17,7 @@ import AdminLayout from './components/admin/AdminLayout';
 import AdminDashboard from './pages/AdminDashboard';
 import AdminQuizzes from './pages/AdminQuizzes';
 import AdminQuizQuestions from './pages/AdminQuizQuestions';
+import AdminQuestionBank from './pages/AdminQuestionBank';
 import StudentDashboard from './pages/StudentDashboard';
 import InviteEntry from './pages/InviteEntry';
 import QuizPlaceholder from './pages/QuizPlaceholder';
@@ -67,6 +68,7 @@ function App() {
             <Route index element={<AdminDashboard />} />
             <Route path='quizzes' element={<AdminQuizzes />} />
             <Route path='quizzes/:quizId/questions' element={<AdminQuizQuestions />} />
+            <Route path='question-bank' element={<AdminQuestionBank />} />
             <Route path='quizzes/:quizId/invites' element={<AdminQuizInvites />} />
             <Route path='attempts' element={<AdminAttempts />} />
           </Route>
