@@ -115,25 +115,3 @@ npm run start:dev
 cd ../qna-app-client
 npm install
 npm run dev
-
----
-
-## Core API Endpoints
-
-### Authentication
-
-* `POST /auth/register` - Register a new user
-* `POST /auth/login` - Authenticate user and return JWT
-
-### Quizzes & Question Bank
-
-* `GET /quiz` - Fetch available quizzes
-* `POST /quiz` - Create a new quiz
-* `GET /quiz/:id` - Fetch quiz details with questions
-* `POST /quiz/:id/questions` - Attach questions to a quiz
-
-### Invitations & Attempts
-
-* `POST /quiz/:id/invite` - Send bulk email invitations
-* `POST /attempt/start` - Initiate a timed quiz attempt
-* `POST /attempt/:id/submit` - Submit answers for automated scoring
